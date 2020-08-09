@@ -4,17 +4,12 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 def normalize(text:str, key:bool=False):
   if key:
     text = text.replace(':', '').replace(' ', '_')
   return text.lower().strip()
-
-def timestamp(df):
-  df['fecha_consulta'] = datetime.now()
-  df['fecha_consulta'] = df['fecha_consulta'].dt.tz_localize('UTC').dt.tz_convert('America/La_Paz')
-  return df
 
 def format_columns(df):
   col = {'dates': 'fecha_reporte',
@@ -39,15 +34,32 @@ def parse_html():
       point[normalize(field.get_text(), key=True)] = normalize(str(field.next_sibling))
     data.append(point)
     df = format_columns(pd.DataFrame(data))
-    df = timestamp(df)
+    df['fecha_consulta'] = now
+    df['fecha_fin'] = ''
   return df.sort_values('fecha_reporte')
 
-def deduplicate(df):
+def consolidate(df):
+  # retrieve saved entries
   oldf = pd.read_csv('data.csv', na_filter=False)
   oldf = format_columns(oldf)
-  joindf = pd.concat([oldf, df], axis=0, ignore_index=True)
-  joindf = joindf.drop_duplicates(subset=['fecha_reporte', 'estado', 'sección', 'evento', 'clima',      'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular',       'sector', 'trabajos_de_conservación_vial'])
-  return joindf.sort_values('fecha_reporte')
 
+  # compare entries and filter duplicates
+  compare_cols = ['fecha_reporte', 'estado', 'sección', 'evento', 'clima',      'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular',       'sector', 'trabajos_de_conservación_vial']  
+  joindf = pd.concat([oldf, df], axis=0, ignore_index=True)
+  duplicates = joindf[joindf.duplicated(subset=compare_cols, keep='last')]
+
+  # get entries that are not present in the newly fetched data
+  expired = pd.concat([oldf, duplicates], axis=0, ignore_index=True)
+  expired = expired[~expired.duplicated(subset=compare_cols, keep=False)]
+  expired.loc[expired['fecha_fin'] == '', ['fecha_fin']] = now
+
+  # get new entries
+  new = pd.concat([df, duplicates], axis=0, ignore_index=True)
+  new = new[~new.duplicated(subset=compare_cols, keep=False)]
+
+  # join expired, duplicates and new entries
+  return pd.concat([expired, duplicates, new], axis=0, ignore_index=True).sort_values('fecha_reporte')
+  
+now = datetime.now(timezone(timedelta(hours=-4)))
 df = parse_html()
-deduplicate(df).to_csv('data.csv', index=False, columns=['fecha_consulta', 'fecha_reporte', 'latitud', 'longitud', 'estado', 'sección', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'sector', 'trabajos_de_conservación_vial'])
+consolidate(df).to_csv('data.csv', index=False, columns=['fecha_consulta', 'fecha_reporte', 'fecha_fin', 'latitud', 'longitud', 'estado', 'sección', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'sector', 'trabajos_de_conservación_vial'])
