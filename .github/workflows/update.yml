@@ -1,7 +1,7 @@
 name: Update data
 on:
   schedule:
-    - cron: '0 4 * * *'
+    - cron: '20 4 * * *'
 jobs:
   update:
     name: update data
@@ -28,7 +28,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          git config --global user.email transitabilidad-bot@example.com"
+          git config --global user.email "transitabilidad-bot@example.com"
           git config --global user.name "transitabilidad-bot"
           git add -A
           git status
