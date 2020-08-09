@@ -12,11 +12,12 @@ def normalize(text:str, key:bool=False):
   return text.lower().strip()
 
 def format_columns(df):
-  col = {'dates': 'fecha_reporte',
+  col = {'dates': ['fecha_reporte', 'fecha_consulta', 'fecha_fin'],
          'category': ['estado', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'trabajos_de_conservación_vial'],
          'string': ['sección', 'sector'],
          'float': ['latitud', 'longitud']}
-  df[col['dates']] = pd.to_datetime(df[col['dates']])
+  for field in col['dates']:
+    df[field] = pd.to_datetime(df[field])
   df[col['category']] = df[col['category']].astype('category')
   df[col['string']] = df[col['string']].astype('string')
   df[col['float']] = df[col['float']].astype('float')
@@ -33,14 +34,15 @@ def parse_html():
     for field in fields:
       point[normalize(field.get_text(), key=True)] = normalize(str(field.next_sibling))
     data.append(point)
-    df = format_columns(pd.DataFrame(data))
+    df = pd.DataFrame(data)
     df['fecha_consulta'] = now
     df['fecha_fin'] = ''
+    df = format_columns(df)
   return df.sort_values('fecha_reporte')
 
 def consolidate(df):
   # retrieve saved entries
-  oldf = pd.read_csv('data.csv', na_filter=False)
+  oldf = pd.read_csv('data1.csv', na_filter=False)
   oldf = format_columns(oldf)
 
   # compare entries and filter duplicates
@@ -58,8 +60,9 @@ def consolidate(df):
   new = new[~new.duplicated(subset=compare_cols, keep=False)]
 
   # join expired, duplicates and new entries
-  return pd.concat([expired, duplicates, new], axis=0, ignore_index=True).sort_values('fecha_reporte')
+  finaldf = pd.concat([expired, duplicates, new], axis=0, ignore_index=True).sort_values('fecha_reporte')
+  return format_columns(finaldf)
   
 now = datetime.now(timezone(timedelta(hours=-4)))
 df = parse_html()
-consolidate(df).to_csv('data.csv', index=False, columns=['fecha_consulta', 'fecha_reporte', 'fecha_fin', 'latitud', 'longitud', 'estado', 'sección', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'sector', 'trabajos_de_conservación_vial'])
+consolidate(df).to_csv('data1.csv', index=False, date_format='%Y-%m-%d %H:%M:%S', columns=['fecha_consulta', 'fecha_reporte', 'fecha_fin', 'latitud', 'longitud', 'estado', 'sección', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'sector', 'trabajos_de_conservación_vial'])
