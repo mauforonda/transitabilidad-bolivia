@@ -42,7 +42,7 @@ def parse_html():
 
 def consolidate(df):
   # retrieve saved entries
-  oldf = pd.read_csv('data1.csv', na_filter=False)
+  oldf = pd.read_csv('data.csv', na_filter=False)
   oldf = format_columns(oldf)
 
   # compare entries and filter duplicates
@@ -65,4 +65,4 @@ def consolidate(df):
   
 now = datetime.now(timezone(timedelta(hours=-4)))
 df = parse_html()
-consolidate(df).to_csv('data1.csv', index=False, date_format='%Y-%m-%d %H:%M:%S', columns=['fecha_consulta', 'fecha_reporte', 'fecha_fin', 'latitud', 'longitud', 'estado', 'sección', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'sector', 'trabajos_de_conservación_vial'])
+consolidate(df).to_csv('data.csv', index=False, date_format='%Y-%m-%d %H:%M:%S', float_format='%.5f', columns=['fecha_consulta', 'fecha_reporte', 'fecha_fin', 'latitud', 'longitud', 'estado', 'sección', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'sector', 'trabajos_de_conservación_vial'])
