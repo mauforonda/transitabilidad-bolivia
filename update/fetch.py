@@ -36,6 +36,7 @@ def parse_html():
     data.append(point)
     df = pd.DataFrame(data)
     df['fecha_consulta'] = now
+    df['fecha_consulta'] = df['fecha_consulta'].dt.tz_localize(None)
     df['fecha_fin'] = ''
     df = format_columns(df)
   return df.sort_values('fecha_reporte')

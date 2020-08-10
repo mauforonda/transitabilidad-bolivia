@@ -6,4 +6,4 @@ Para consolidar estos datos, creo 2 columnas nuevas:
 - `fecha_consulta` indica el momento que he consultado la fuente
 - `fecha_fin` indica el momento de consulta en que he detectado que un incidente ha dejado de ser reportado
 
-Todos las demás columnas reflejan la información provista por la fuente y sus nombres sólo han sido mínimamente normalizados para facilitar su manipulación. Si bien no he encontrado documentación oficial que comunique qué deberíamos leer en estos datos, los valores obtenidos parecen autoexplicativos. Todas los tiempos están en timezone `GMT -04:00`
+Todas las demás columnas reflejan la información provista por la fuente y sus nombres sólo han sido mínimamente normalizados para facilitar su manipulación. Si bien no he encontrado documentación oficial que comunique qué deberíamos leer en estos datos, los valores obtenidos parecen autoexplicativos. Todas los tiempos están en timezone `GMT -04:00`
