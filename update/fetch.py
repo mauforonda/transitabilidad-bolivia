@@ -17,7 +17,7 @@ def format_columns(df):
          'string': ['sección', 'sector'],
          'float': ['latitud', 'longitud']}
   for field in col['dates']:
-    df[field] = pd.to_datetime(df[field])
+    df[field] = pd.to_datetime(df[field].fillna(pd.NaT))
   df[col['category']] = df[col['category']].astype('category')
   df[col['string']] = df[col['string']].astype('string')
   df[col['float']] = df[col['float']].astype('float')
@@ -60,6 +60,7 @@ def consolidate(df):
   new = new[~new.duplicated(subset=compare_cols, keep=False)]
 
   # join expired, duplicates and new entries
+  
   finaldf = pd.concat([expired, duplicates, new], axis=0, ignore_index=True).sort_values('fecha_reporte')
   return format_columns(finaldf)
   
