@@ -54,7 +54,7 @@ def consolidate(df):
   # get entries that are not present in the newly fetched data
   expired = pd.concat([oldf, duplicates], axis=0, ignore_index=True)
   expired = expired[~expired.duplicated(subset=compare_cols, keep=False)]
-  expired.loc[expired['fecha_fin'] == '', ['fecha_fin']] = now
+  expired.loc[expired['fecha_fin'].isna(), ['fecha_fin']] = now.replace(tzinfo=None)
 
   # get new entries
   new = pd.concat([df, duplicates], axis=0, ignore_index=True)
