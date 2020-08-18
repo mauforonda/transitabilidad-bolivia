@@ -24,13 +24,17 @@ jobs:
         run: |
           python update/fetch.py
         id: run_update_script
-      - name: commit
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      - name: git status
+        id: git-status
         run: |
           git config --global user.email "transitabilidad-bot@example.com"
           git config --global user.name "transitabilidad-bot"
+          echo ::set-output name=result::$(git status | tr -d "\n" | grep -c "nothing to commit")
+      - name: commit
+        if: steps.git-status.outputs.results == 0
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
           git add -A
-          git status
           git commit -m "[ci] actualización"
           git push -q "https://$GH_TOKEN@github.com/mauforonda/transitabilidad-bolivia.git" master
