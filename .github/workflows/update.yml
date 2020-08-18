@@ -31,7 +31,7 @@ jobs:
           git config --global user.name "transitabilidad-bot"
           echo ::set-output name=result::$(git status | tr -d "\n" | grep -c "nothing to commit")
       - name: commit
-        if: steps.git-status.outputs.results == 0
+        if: steps.git-status.outputs.result == 0
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
