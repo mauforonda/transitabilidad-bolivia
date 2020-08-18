@@ -39,7 +39,7 @@ def parse_html():
     df['fecha_consulta'] = df['fecha_consulta'].dt.tz_localize(None)
     df['fecha_fin'] = ''
     df = format_columns(df)
-  return df.sort_values('fecha_reporte')
+  return df.sort_values(['fecha_reporte', 'sección'])
 
 def consolidate(df):
   # retrieve saved entries
@@ -62,7 +62,7 @@ def consolidate(df):
 
   # join expired, duplicates and new entries
   
-  finaldf = pd.concat([expired, duplicates, new], axis=0, ignore_index=True).sort_values('fecha_reporte')
+  finaldf = pd.concat([expired, duplicates, new], axis=0, ignore_index=True).sort_values(['fecha_reporte', 'sección'])
   return format_columns(finaldf)
   
 now = datetime.now(timezone(timedelta(hours=-4)))
