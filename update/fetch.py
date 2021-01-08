@@ -25,21 +25,25 @@ def format_columns(df):
 
 def parse_html():
   data = []
-  html = requests.get('http://transitabilidad.abc.gob.bo/movil').text
-  for popup in re.findall('\.bindPopup\(\'(<div style="font-size: 10px">.*)\'\)', html):
-    point = {}
-    soup = BeautifulSoup(''.join(popup.split("\' + \'")), 'html.parser')
-    fields = soup.select('b[style*="color: #f5b041"]')
-    fields.extend(soup.select('b')[-2:])
-    for field in fields:
-      point[normalize(field.get_text(), key=True)] = normalize(str(field.next_sibling))
-    data.append(point)
-    df = pd.DataFrame(data)
-    df['fecha_consulta'] = now
-    df['fecha_consulta'] = df['fecha_consulta'].dt.tz_localize(None)
-    df['fecha_fin'] = ''
-    df = format_columns(df)
-  return df.sort_values(['fecha_reporte', 'sección'])
+  try:
+    html = requests.get('http://transitabilidad.abc.gob.bo//movil').text
+    for popup in re.findall('\.bindPopup\(\'(<div style="font-size: 10px">.*)\'\)', html):
+      point = {}
+      soup = BeautifulSoup(''.join(popup.split("\' + \'")), 'html.parser')
+      fields = soup.select('b[style*="color: #f5b041"]')
+      fields.extend(soup.select('b')[-2:])
+      for field in fields:
+        point[normalize(field.get_text(), key=True)] = normalize(str(field.next_sibling))
+      data.append(point)
+      df = pd.DataFrame(data)
+      df['fecha_consulta'] = now
+      df['fecha_consulta'] = df['fecha_consulta'].dt.tz_localize(None)
+      df['fecha_fin'] = ''
+      df = format_columns(df)
+    return df.sort_values(['fecha_reporte', 'sección'])
+  except requests.exceptions.RequestException as e:
+    print(e)
+    return None
 
 def consolidate(df):
   # retrieve saved entries
@@ -67,4 +71,5 @@ def consolidate(df):
   
 now = datetime.now(timezone(timedelta(hours=-4)))
 df = parse_html()
-consolidate(df).to_csv('data.csv', index=False, date_format='%Y-%m-%d %H:%M:%S', float_format='%.5f', columns=['fecha_consulta', 'fecha_reporte', 'fecha_fin', 'latitud', 'longitud', 'estado', 'sección', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'sector', 'trabajos_de_conservación_vial'])
+if df:
+  consolidate(df).to_csv('data.csv', index=False, date_format='%Y-%m-%d %H:%M:%S', float_format='%.5f', columns=['fecha_consulta', 'fecha_reporte', 'fecha_fin', 'latitud', 'longitud', 'estado', 'sección', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'sector', 'trabajos_de_conservación_vial'])
