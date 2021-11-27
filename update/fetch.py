@@ -27,6 +27,7 @@ def format_columns(df):
 def parse_html():
   data = []
   try:
+    df = pd.DataFrame()
     html = requests.get('http://transitabilidad.abc.gob.bo//movil').text
     for popup in re.findall('\.bindPopup\(\'(<div style="font-size: 10px">.*)\'\)', html):
       point = {}
@@ -41,7 +42,10 @@ def parse_html():
       df['fecha_consulta'] = df['fecha_consulta'].dt.tz_localize(None)
       df['fecha_fin'] = ''
       df = format_columns(df)
-    return df.sort_values(['fecha_reporte', 'sección'])
+    if len(df) > 0:
+      return df.sort_values(['fecha_reporte', 'sección'])
+    else:
+      return None
   except requests.exceptions.RequestException as e:
     sys.exit(1)
 
@@ -71,4 +75,5 @@ def consolidate(df):
   
 now = datetime.now(timezone(timedelta(hours=-4)))
 df = parse_html()
-consolidate(df).to_csv('data.csv', index=False, date_format='%Y-%m-%d %H:%M:%S', float_format='%.5f', columns=['fecha_consulta', 'fecha_reporte', 'fecha_fin', 'latitud', 'longitud', 'estado', 'sección', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'sector', 'trabajos_de_conservación_vial'])
+if df is not None:
+  consolidate(df).to_csv('data.csv', index=False, date_format='%Y-%m-%d %H:%M:%S', float_format='%.5f', columns=['fecha_consulta', 'fecha_reporte', 'fecha_fin', 'latitud', 'longitud', 'estado', 'sección', 'evento', 'clima', 'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular', 'sector', 'trabajos_de_conservación_vial'])
