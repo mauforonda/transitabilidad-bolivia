@@ -27,22 +27,24 @@ def format_columns(df):
 def parse_html():
   data = []
   try:
-    df = pd.DataFrame()
-    html = requests.get('http://transitabilidad.abc.gob.bo//movil').text
-    for popup in re.findall('\.bindPopup\(\'(<div style="font-size: 10px">.*)\'\)', html):
-      point = {}
-      soup = BeautifulSoup(''.join(popup.split("\' + \'")), 'html.parser')
-      fields = soup.select('b[style*="color: #f5b041"]')
-      fields.extend(soup.select('b')[-2:])
-      for field in fields:
-        point[normalize(field.get_text(), key=True)] = normalize(str(field.next_sibling))
-      data.append(point)
+    html = requests.get('http://transitabilidad.abc.gob.bo/mapa').text
+    popups = re.findall('\.bindPopup\(\'<img alt\=\"\" src\=.*', html)
+    if len(popups) > 0:
+      data = []
+      for popup in popups:
+        if 'youtube' not in popup:
+          point = {}
+          soup = BeautifulSoup(''.join(popup.split("\' + \'")), 'html.parser')
+          fields = soup.select('b[style*="color: #f5b041"]')
+          fields.extend(soup.select('b')[-2:])
+          for field in fields:
+            point[normalize(field.get_text(), key=True)] = normalize(str(field.next_sibling))
+          data.append(point)
       df = pd.DataFrame(data)
       df['fecha_consulta'] = now
       df['fecha_consulta'] = df['fecha_consulta'].dt.tz_localize(None)
       df['fecha_fin'] = ''
       df = format_columns(df)
-    if len(df) > 0:
       return df.sort_values(['fecha_reporte', 'sección'])
     else:
       return None
