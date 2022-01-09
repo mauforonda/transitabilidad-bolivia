@@ -49,7 +49,7 @@ def parse_html():
     else:
       return None
   except requests.exceptions.RequestException as e:
-    sys.exit(1)
+    sys.exit("El mapa está inaccesible")
 
 def consolidate(df):
   # retrieve saved entries
