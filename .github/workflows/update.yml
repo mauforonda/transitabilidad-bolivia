@@ -24,6 +24,10 @@ jobs:
         run: |
           python update/fetch.py
         id: run_update_script
+      - name: run summary script
+        run: |
+          python update/summary.py
+        id: run_summary_script
       - name: git status
         id: git-status
         run: |
