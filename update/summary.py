@@ -2,6 +2,7 @@
 
 import pandas as pd
 import datetime as dt
+import pytz
 import json
 
 # events that indicate social conflicts in the source classification
@@ -27,18 +28,25 @@ def active_conflicts_in_day(data, day):
 
 def load_and_prepare_data():
     "loads data and creates a column to classify events as conflicts"
+    datecols = ['fecha_consulta', 'fecha_reporte', 'fecha_fin']
     df = pd.read_csv(
         'data.csv',
-        parse_dates=['fecha_consulta', 'fecha_reporte', 'fecha_fin'])
+        parse_dates=datecols)
+    for col in datecols:
+        df[col] = df[col].dt.tz_localize(bolivia)
     df['conflicto'] = df.estado.isin(conflict_events).map({False:'no_conflicto', True:'conflicto'})
     return df
 
 def list_everyday(data):
-    "returns a list of every day covered by the dataset at noon"
-    return pd.date_range(
+    "returns a list of every day from the start of the dataset at noon"
+    now = dt.datetime.now(tz=bolivia)
+    days = pd.date_range(
         at_noon(data.fecha_reporte.min()),
-        at_noon(data.fecha_reporte.max()),
-        freq='D')
+        at_noon(now),
+        freq='D',
+        tz=bolivia)
+    days = [d for d in days if d < now]
+    return days
 
 def conflicts_everyday(data):
     "creates a dataframe with the number of conflict and non-conflict events for every day covered by the dataset"
@@ -54,6 +62,7 @@ def active_conflicts_now(data):
     with open('activos_ahora.json', 'w+') as f:
         json.dump(data[data.fecha_fin.isna()].conflicto.value_counts().to_dict(), f)
 
+bolivia = pytz.timezone("America/La_Paz")
 data = load_and_prepare_data()
 conflict_timeline = conflicts_everyday(data)
 conflict_timeline.to_csv('activos_diarios.csv', date_format='%Y-%m-%d')
