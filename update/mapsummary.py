@@ -32,7 +32,8 @@ times = pd.date_range(
     start=df.fecha_reporte.min(), 
     end=now, 
     freq='6H',
-    tz=bolivia
+    tz=bolivia,
+    normalize=True
 )
 
 # cada 6 horas qué conflictos están abiertos
