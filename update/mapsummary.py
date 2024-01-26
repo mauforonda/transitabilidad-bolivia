@@ -29,16 +29,15 @@ timeseries = []
 # cada 6 horas entre el primer día de registro y ahora
 now = dt.datetime.now(tz=bolivia)
 times = pd.date_range(
-    start=df.fecha_reporte.min(), 
-    end=now, 
+    start=df.fecha_reporte.min().replace(hour=0, minute=0, second=0), 
+    end=now,
     freq='6H',
-    tz=bolivia,
-    normalize=True
+    tz=bolivia
 )
 
 # cada 6 horas qué conflictos están abiertos
 for time in times:
-    open_conflicts = df[(df.fecha_reporte <= time) & (time <= df.fecha_fin)]['id'].tolist()
+    open_conflicts = df[(df.fecha_reporte <= time) & ((time <= df.fecha_fin) | df.fecha_fin.isna())]['id'].tolist()
     timeseries.append({
         'time': time.isoformat(),
         'open': open_conflicts
