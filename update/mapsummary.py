@@ -45,7 +45,7 @@ for time in times:
 
 # guardar la lista de conflictos para cada tiempo
 with open('conflictos_tiempo.json', 'w+') as f:
-    json.dump(timeseries, f)
+    json.dump(timeseries, f, indent=2)
 
 # guardar coordenadas para cada conflicto
 df[['id', 'latitud', 'longitud']].to_csv('conflictos_coordenadas.csv', index=False)
