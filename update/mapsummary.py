@@ -4,7 +4,6 @@ import pandas as pd
 import datetime as dt
 import json
 import pytz
-from tqdm import tqdm
 
 # zona horaria en Bolivia
 bolivia = pytz.timezone("America/La_Paz")
