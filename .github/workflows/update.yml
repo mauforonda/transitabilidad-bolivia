@@ -29,6 +29,9 @@ jobs:
         run: |
           python update/summary.py
         id: run_summary_script
+        run: |
+          python update/mapsummary.py
+        id: run_mapsummary_script
       - name: git status
         id: git-status
         run: |
