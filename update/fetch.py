@@ -27,7 +27,7 @@ def format_columns(df):
 def parse_html():
   data = []
   try:
-    html = requests.get('http://transitabilidad.abc.gob.bo/mapa').text
+    html = requests.get('https://transitabilidad.abc.gob.bo/mapa').text
     popups = re.findall('\.bindPopup\(\'<img alt\=\"\" src\=.*', html)
     if len(popups) > 0:
       data = []
