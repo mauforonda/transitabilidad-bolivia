@@ -28,7 +28,7 @@ def parse_html():
   data = []
   try:
     html = requests.get('https://transitabilidad.abc.gob.bo/mapa', verify=False).text
-    popups = re.findall('\.bindPopup\(\'<img alt\=\"\" src\=.*', html)
+    popups = re.findall(r'\.bindPopup\(\'<img alt\=\"\" src\=.*', html)
     if len(popups) > 0:
       data = []
       for popup in popups:

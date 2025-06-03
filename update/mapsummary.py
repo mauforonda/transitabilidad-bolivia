@@ -31,7 +31,7 @@ now = dt.datetime.now(tz=bolivia)
 times = pd.date_range(
     start=df.fecha_reporte.min().replace(hour=0, minute=0, second=0), 
     end=now,
-    freq='6H',
+    freq='6h',
     tz=bolivia
 )
 
