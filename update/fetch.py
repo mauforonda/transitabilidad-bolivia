@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
+import numpy as np
 from datetime import datetime, timezone, timedelta
 import sys
 
@@ -21,13 +22,20 @@ def format_columns(df):
     df[field] = pd.to_datetime(df[field].fillna(pd.NaT))
   df[col['category']] = df[col['category']].astype('category')
   df[col['string']] = df[col['string']].astype('string')
-  df[col['float']] = df[col['float']].astype('float')
+
+  df[col['float']] = df[col['float']].apply(
+    lambda _: _.astype(str).str.strip().apply(lambda __: float(__) if __ else np.nan)
+  )
   return df
 
 def parse_html():
   data = []
   try:
-    html = requests.get('https://transitabilidad.abc.gob.bo/mapa', verify=False).text
+    html = requests.get(
+        'https://transitabilidad.abc.gob.bo/mapa',
+        verify=False,
+        proxies={'http': 'http://190.181.30.54:5678'},
+    ).text
     popups = re.findall(r'\.bindPopup\(\'<img alt\=\"\" src\=.*', html)
     if len(popups) > 0:
       data = []
@@ -57,7 +65,19 @@ def consolidate(df):
   oldf = format_columns(oldf)
 
   # compare entries and filter duplicates
-  compare_cols = ['fecha_reporte', 'estado', 'sección', 'evento', 'clima',      'horario_de_corte', 'tipo_de_carretera', 'alternativa_de_circulación_o_desvios', 'restricción_vehicular',       'sector', 'trabajos_de_conservación_vial']  
+  compare_cols = [
+    'fecha_reporte',
+    'estado',
+    'sección',
+    'evento',
+    'clima',
+    'horario_de_corte',
+    'tipo_de_carretera',
+    'alternativa_de_circulación_o_desvios',
+    'restricción_vehicular',
+    'sector',
+    'trabajos_de_conservación_vial'
+  ]
   joindf = pd.concat([oldf, df], axis=0, ignore_index=True)
   duplicates = joindf[joindf.duplicated(subset=compare_cols, keep='last')]
 
@@ -71,10 +91,10 @@ def consolidate(df):
   new = new[~new.duplicated(subset=compare_cols, keep=False)]
 
   # join expired, duplicates and new entries
-  
+
   finaldf = pd.concat([expired, duplicates, new], axis=0, ignore_index=True).sort_values(['fecha_reporte', 'sección'])
   return format_columns(finaldf)
-  
+
 now = datetime.now(timezone(timedelta(hours=-4)))
 df = parse_html()
 if df is not None:
