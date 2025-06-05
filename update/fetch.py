@@ -28,14 +28,89 @@ def format_columns(df):
   )
   return df
 
+DEFAULT_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)'
+}
+def _get_proxy_list():
+  req = requests.get(
+    'https://www.proxydocker.com/es/proxylist/country/Bolivia',
+    headers=DEFAULT_HEADERS
+  )
+  html = BeautifulSoup(req.content, 'html.parser')
+
+  meta = html.findChild('meta', attrs={'name': '_token'})
+  token = meta.attrs['content']
+
+  cookies = req.headers['Set-Cookie']
+  cookies = [cookie.split(';')[0] for cookie in cookies.split(',')]
+  cookies = [_ for _ in cookies if '=' in _]
+
+  PROXY_TYPES = {
+    '1': 'http',
+    '2': 'https',
+    '12': 'https',
+    '3': 'socks4',
+    '4': 'socks5'
+  }
+
+  proxy_data = {
+    'token': token,
+    'country': 'Bolivia',
+    'city': 'all',
+    'state': 'all',
+    'port': 'all',
+    'type': 'all',
+    'anonymity': 'all',
+    'need': 'all',
+    'page': 1
+  }
+  proxies = []
+
+  for page in range(1, 3):
+    proxy_data['page'] = page
+    req = requests.post(
+      'https://www.proxydocker.com/es/api/proxylist/',
+      data=proxy_data,
+      headers={
+        'Cookie': ';'.join(cookies),
+        **DEFAULT_HEADERS
+      }
+    )
+
+    payload = req.json()
+    if 'proxies' in payload and len(payload['proxies']) > 0:
+      proxies.extend(payload['proxies'])
+    else:
+      break
+
+  proxies = [(
+    'https',
+    '{}://{}:{}'.format(PROXY_TYPES[_['type']], _['ip'], _['port'])
+  ) for _ in  proxies if _['type'] in PROXY_TYPES.keys()]
+
+  return proxies
+
+def do_request():
+  proxies = _get_proxy_list()
+  for proxy in proxies:
+    proxy = dict([proxy])
+    try:
+      return requests.get(
+        'https://transitabilidad.abc.gob.bo/mapa',
+        verify=False,
+        proxies=proxy,
+        headers=DEFAULT_HEADERS,
+        timeout=20,
+      )
+    except:
+      continue
+
+  raise Exception('non avail proxy')
+
 def parse_html():
   data = []
   try:
-    html = requests.get(
-        'https://transitabilidad.abc.gob.bo/mapa',
-        verify=False,
-        proxies={'http': 'http://190.181.30.54:5678'},
-    ).text
+    html = do_request().text
     popups = re.findall(r'\.bindPopup\(\'<img alt\=\"\" src\=.*', html)
     if len(popups) > 0:
       data = []
@@ -57,7 +132,7 @@ def parse_html():
     else:
       return None
   except requests.exceptions.RequestException as e:
-    sys.exit("El mapa está inaccesible")
+    raise(e)
 
 def consolidate(df):
   # retrieve saved entries
