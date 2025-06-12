@@ -40,7 +40,7 @@ def format_columns(df):
         lambda _: _.astype(str)
         .str.strip()
         .apply(lambda __: float(__) if __ else np.nan)
-    )
+    ).round(5)
     return df
 
 
