@@ -226,16 +226,8 @@ def consolidate(df):
     # compare entries and filter duplicates
     compare_cols = [
         "fecha_reporte",
-        "estado",
-        "sección",
-        "evento",
-        "clima",
-        "horario_de_corte",
-        "tipo_de_carretera",
-        "alternativa_de_circulación_o_desvios",
-        "restricción_vehicular",
-        "sector",
-        "trabajos_de_conservación_vial",
+        "latitud",
+        "longitud"
     ]
     joindf = pd.concat([oldf, df], axis=0, ignore_index=True)
     duplicates = joindf[joindf.duplicated(subset=compare_cols, keep="last")]
