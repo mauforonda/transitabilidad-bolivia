@@ -119,11 +119,11 @@ def proxy_request(url):
                 headers=DEFAULT_HEADERS,
                 timeout=20,
             )
-        except:
+        except Exception as e:
+            print(f"Request error: {e}")
             continue
 
     raise Exception("non avail proxy")
-
 
 
 def get_data(proxy=True, method="api"):
