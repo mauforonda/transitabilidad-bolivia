@@ -180,7 +180,7 @@ def get_data(proxy=True, method="api"):
                 restricción_vehicular=normalize(
                     e["restriccion_vehicular"]["descripcion_restriccion_vehicular"]
                 ),
-                sector=normalize(e["descr_sector"]),
+                sector=normalize(e["descr_sector"]) if e["descr_sector"] else "",
                 trabajos_de_conservación_vial=normalize(
                     e["trabajos_conservacion"]["descripcion_trabajos_conservacion_vial"]
                 ),
