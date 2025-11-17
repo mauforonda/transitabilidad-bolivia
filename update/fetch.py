@@ -134,7 +134,7 @@ def get_data(proxy=True, method="api"):
         if proxy:
             html = proxy_request(url).text
         else:
-            html = requests.get(url).text
+            html = requests.get(url, verify=False).text
         popups = re.findall(r"\.bindPopup\(\'<img alt\=\"\" src\=.*", html)
         for popup in popups:
             if "youtube" not in popup:
@@ -192,7 +192,7 @@ def get_data(proxy=True, method="api"):
         if proxy:
             api = proxy_request(url).json()
         else:
-            api = requests.get(url).json()
+            api = requests.get(url, verify=False).json()
         if api:
             print(f"Se registran {len(api)} eventos")
             data = [process_event(e) for e in api]
