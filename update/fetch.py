@@ -36,11 +36,15 @@ def format_columns(df):
     df[col["category"]] = df[col["category"]].astype("category")
     df[col["string"]] = df[col["string"]].astype("string")
 
-    df[col["float"]] = df[col["float"]].apply(
-        lambda _: _.astype(str)
-        .str.strip()
-        .apply(lambda __: float(__) if __ else np.nan)
-    ).round(5)
+    df[col["float"]] = (
+        df[col["float"]]
+        .apply(
+            lambda _: _.astype(str)
+            .str.strip()
+            .apply(lambda __: float(__) if __ else np.nan)
+        )
+        .round(5)
+    )
     return df
 
 
@@ -107,8 +111,61 @@ def _get_proxy_list():
     return proxies
 
 
+def _get_proxy_list2():
+    def source_proxyhub():
+        url = "https://proxyhub.me/en/bo-socks5-proxy-list.html"
+        r = requests.get(url)
+        html = BeautifulSoup(r.text, "html.parser")
+
+        proxies = [
+            {
+                k: row.select("td")[v].get_text()
+                for k, v in zip(["ip", "port", "type"], [0, 1, 2])
+            }
+            for row in html.select("tbody tr")
+        ]
+        return proxies
+
+    def source_freeproxy():
+        url = "https://www.freeproxy.world/?country=BO"
+        r = requests.get(url)
+        html = BeautifulSoup(r.text, "html.parser")
+
+        proxies = [
+            {
+                k: row.select("td")[v].get_text().strip()
+                for k, v in zip(["ip", "port", "type"], [0, 1, 5])
+            }
+            for row in html.select("tbody tr")
+        ]
+        return proxies
+
+    def source_ditatompel():
+        url = "https://www.ditatompel.com/proxy/country/bo"
+        r = requests.get(url)
+        html = BeautifulSoup(r.text, "html.parser")
+
+        proxies = [
+            {
+                "ip": row.select("td")[0]
+                .select("strong")[0]
+                .get_text()
+                .replace(":", ""),
+                "port": row.select("td")[0].select("span")[0].get_text(),
+                "type": row.select("td")[1].select("a")[0].get_text(),
+            }
+            for row in html.select("tbody tr")
+        ]
+
+        return proxies
+
+    # proxies = sum([source_freeproxy(), source_proxyhub(), source_ditatompel()], [])
+    proxies = source_freeproxy()
+    return [("https", f"{p['type'].lower()}://{p['ip']}:{p['port']}") for p in proxies]
+
+
 def proxy_request(url):
-    proxies = _get_proxy_list()
+    proxies = _get_proxy_list2()
     for proxy in proxies:
         proxy = dict([proxy])
         try:
@@ -127,7 +184,6 @@ def proxy_request(url):
 
 
 def get_data(proxy=True, method="api"):
-
     def from_html(proxy):
         data = []
         url = "https://transitabilidad.abc.gob.bo/mapa"
@@ -156,9 +212,8 @@ def get_data(proxy=True, method="api"):
             return df.sort_values(["fecha_reporte", "sección"])
         else:
             return None
-    
-    def from_api(proxy):
 
+    def from_api(proxy):
         def process_event(e):
             event = dict(
                 fecha_consulta=now,
@@ -167,13 +222,17 @@ def get_data(proxy=True, method="api"):
                 latitud=e["latitud_inicio_seccion"],
                 longitud=e["longitud_inicio_seccion"],
                 estado=normalize(
-                    f'{e["estado"]["codigo_estado"]} - {e["estado"]["descripcion_estado"]}'
+                    f"{e['estado']['codigo_estado']} - {e['estado']['descripcion_estado']}"
                 ),
-                sección=normalize(f'{e["inicio_seccion"]} - {e["fin_seccion"]}'),
+                sección=normalize(f"{e['inicio_seccion']} - {e['fin_seccion']}"),
                 evento=normalize(e["evento"]["descripcion_evento"]),
                 clima=normalize(e["clima"]["descripcion_clima"]),
-                horario_de_corte=normalize(e["horario_corte"]["descripcion_horario_de_corte"]),
-                tipo_de_carretera=normalize(e["tipo_carretera"]["descripcion_tipo_carretera"]),
+                horario_de_corte=normalize(
+                    e["horario_corte"]["descripcion_horario_de_corte"]
+                ),
+                tipo_de_carretera=normalize(
+                    e["tipo_carretera"]["descripcion_tipo_carretera"]
+                ),
                 alternativa_de_circulación_o_desvios=normalize(
                     e["transitable_con_desvio"]["descripcion_transitable_con_desvio"]
                 ),
@@ -217,18 +276,13 @@ def get_data(proxy=True, method="api"):
 
 
 def consolidate(df):
-
     print("Consolidando eventos ...")
     # retrieve saved entries
     oldf = pd.read_csv("data.csv", na_filter=False)
     oldf = format_columns(oldf)
 
     # compare entries and filter duplicates
-    compare_cols = [
-        "fecha_reporte",
-        "latitud",
-        "longitud"
-    ]
+    compare_cols = ["fecha_reporte", "latitud", "longitud"]
     joindf = pd.concat([oldf, df], axis=0, ignore_index=True)
     duplicates = joindf[joindf.duplicated(subset=compare_cols, keep="last")]
 
@@ -250,7 +304,7 @@ def consolidate(df):
 
 
 now = datetime.now(timezone(timedelta(hours=-4)))
-df = get_data(proxy=False, method="api")
+df = get_data(proxy=True, method="api")
 if df is not None:
     consolidate(df).to_csv(
         "data.csv",
