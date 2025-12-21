@@ -304,7 +304,7 @@ def consolidate(df):
 
 
 now = datetime.now(timezone(timedelta(hours=-4)))
-df = get_data(proxy=True, method="api")
+df = get_data(proxy=False, method="api")
 if df is not None:
     consolidate(df).to_csv(
         "data.csv",
