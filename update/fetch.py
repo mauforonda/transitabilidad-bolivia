@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 
 import requests
+from requests_toolbelt.multipart.encoder import MultipartEncoder
+
 from bs4 import BeautifulSoup
+
 import re
+import sys
+import time
+import random
+
 import pandas as pd
 import numpy as np
+
 from datetime import datetime, timezone, timedelta
-import sys
 
 
 def normalize(text: str, key: bool = False):
@@ -49,23 +56,47 @@ def format_columns(df):
 
 
 DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)"
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)',
+    'Sec-Ch-Ua-Platform': 'Linux',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Sec-Ch-Ua': '"Not_A Brand";v="99", "Chromium";v="142"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Accept': '*/*',
+    'Origin': 'https://www.proxydocker.com',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Dest': 'empty',
+    'Referer': 'https://www.proxydocker.com/es/proxylist/country/Bolivia',
 }
 
 
 def _get_proxy_list():
-    req = requests.get(
+    sess = requests.session()
+
+    req = sess.get(
         "https://www.proxydocker.com/es/proxylist/country/Bolivia",
         headers=DEFAULT_HEADERS,
     )
+    if 'CAPTCHA Check' in req.text:
+        time.sleep(1 + 3 * random.random())
+
+        mp_encoder = MultipartEncoder({})
+        req = sess.post(
+            'https://www.proxydocker.com/api/captcha/check', 
+            data=mp_encoder,
+            headers={**DEFAULT_HEADERS, 'Content-Type': mp_encoder.content_type}
+        )
+
+        req = sess.get(
+            "https://www.proxydocker.com/es/proxylist/country/Bolivia",
+            headers=DEFAULT_HEADERS,
+        )
+
+
     html = BeautifulSoup(req.content, "html.parser")
 
     meta = html.findChild("meta", attrs={"name": "_token"})
     token = meta.attrs["content"]
-
-    cookies = req.headers["Set-Cookie"]
-    cookies = [cookie.split(";")[0] for cookie in cookies.split(",")]
-    cookies = [_ for _ in cookies if "=" in _]
 
     PROXY_TYPES = {
         "1": "http",
@@ -90,10 +121,10 @@ def _get_proxy_list():
 
     for page in range(1, 3):
         proxy_data["page"] = page
-        req = requests.post(
+        req = sess.post(
             "https://www.proxydocker.com/es/api/proxylist/",
             data=proxy_data,
-            headers={"Cookie": ";".join(cookies), **DEFAULT_HEADERS},
+            headers={'X-Requested-With': 'XMLHttpRequest', **DEFAULT_HEADERS},
         )
 
         payload = req.json()
@@ -165,7 +196,7 @@ def _get_proxy_list2():
 
 
 def proxy_request(url):
-    proxies = _get_proxy_list2()
+    proxies = _get_proxy_list()
     for proxy in proxies:
         proxy = dict([proxy])
         try:
@@ -303,29 +334,30 @@ def consolidate(df):
     return format_columns(finaldf)
 
 
-now = datetime.now(timezone(timedelta(hours=-4)))
-df = get_data(proxy=False, method="api")
-if df is not None:
-    consolidate(df).to_csv(
-        "data.csv",
-        index=False,
-        date_format="%Y-%m-%d %H:%M:%S",
-        float_format="%.5f",
-        columns=[
-            "fecha_consulta",
-            "fecha_reporte",
-            "fecha_fin",
-            "latitud",
-            "longitud",
-            "estado",
-            "sección",
-            "evento",
-            "clima",
-            "horario_de_corte",
-            "tipo_de_carretera",
-            "alternativa_de_circulación_o_desvios",
-            "restricción_vehicular",
-            "sector",
-            "trabajos_de_conservación_vial",
-        ],
-    )
+if __name__ == '__main__':
+    now = datetime.now(timezone(timedelta(hours=-4)))
+    df = get_data(proxy=True, method="api")
+    if df is not None:
+        consolidate(df).to_csv(
+            "data.csv",
+            index=False,
+            date_format="%Y-%m-%d %H:%M:%S",
+            float_format="%.5f",
+            columns=[
+                "fecha_consulta",
+                "fecha_reporte",
+                "fecha_fin",
+                "latitud",
+                "longitud",
+                "estado",
+                "sección",
+                "evento",
+                "clima",
+                "horario_de_corte",
+                "tipo_de_carretera",
+                "alternativa_de_circulación_o_desvios",
+                "restricción_vehicular",
+                "sector",
+                "trabajos_de_conservación_vial",
+            ],
+        )
