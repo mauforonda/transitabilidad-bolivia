@@ -56,17 +56,17 @@ def format_columns(df):
 
 
 DEFAULT_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)',
-    'Sec-Ch-Ua-Platform': 'Linux',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Sec-Ch-Ua': '"Not_A Brand";v="99", "Chromium";v="142"',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Accept': '*/*',
-    'Origin': 'https://www.proxydocker.com',
-    'Sec-Fetch-Site': 'same-origin',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Dest': 'empty',
-    'Referer': 'https://www.proxydocker.com/es/proxylist/country/Bolivia',
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)",
+    "Sec-Ch-Ua-Platform": "Linux",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Sec-Ch-Ua": '"Not_A Brand";v="99", "Chromium";v="142"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Accept": "*/*",
+    "Origin": "https://www.proxydocker.com",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Dest": "empty",
+    "Referer": "https://www.proxydocker.com/es/proxylist/country/Bolivia",
 }
 
 
@@ -77,21 +77,20 @@ def _get_proxy_list():
         "https://www.proxydocker.com/es/proxylist/country/Bolivia",
         headers=DEFAULT_HEADERS,
     )
-    if 'CAPTCHA Check' in req.text:
+    if "CAPTCHA Check" in req.text:
         time.sleep(1 + 3 * random.random())
 
         mp_encoder = MultipartEncoder({})
         req = sess.post(
-            'https://www.proxydocker.com/api/captcha/check', 
+            "https://www.proxydocker.com/api/captcha/check",
             data=mp_encoder,
-            headers={**DEFAULT_HEADERS, 'Content-Type': mp_encoder.content_type}
+            headers={**DEFAULT_HEADERS, "Content-Type": mp_encoder.content_type},
         )
 
         req = sess.get(
             "https://www.proxydocker.com/es/proxylist/country/Bolivia",
             headers=DEFAULT_HEADERS,
         )
-
 
     html = BeautifulSoup(req.content, "html.parser")
 
@@ -124,7 +123,7 @@ def _get_proxy_list():
         req = sess.post(
             "https://www.proxydocker.com/es/api/proxylist/",
             data=proxy_data,
-            headers={'X-Requested-With': 'XMLHttpRequest', **DEFAULT_HEADERS},
+            headers={"X-Requested-With": "XMLHttpRequest", **DEFAULT_HEADERS},
         )
 
         payload = req.json()
@@ -282,7 +281,11 @@ def get_data(proxy=True, method="api"):
         if proxy:
             api = proxy_request(url).json()
         else:
-            api = requests.get(url, verify=False).json()
+            api = requests.get(
+                url,
+                verify=False,
+                timeout=20,
+            ).json()
         if api:
             print(f"Se registran {len(api)} eventos")
             data = [process_event(e) for e in api]
@@ -294,16 +297,13 @@ def get_data(proxy=True, method="api"):
         else:
             return None
 
-    try:
-        if method == "html":
-            data = from_html(proxy)
-        elif method == "api":
-            data = from_api(proxy)
-        else:
-            data = None
-        return data
-    except requests.exceptions.RequestException as e:
-        sys.exit("El mapa está inaccesible")
+    if method == "html":
+        data = from_html(proxy)
+    elif method == "api":
+        data = from_api(proxy)
+    else:
+        data = None
+    return data
 
 
 def consolidate(df):
@@ -334,9 +334,17 @@ def consolidate(df):
     return format_columns(finaldf)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     now = datetime.now(timezone(timedelta(hours=-4)))
-    df = get_data(proxy=False, method="api")
+    try:
+        try:
+            print("Intentado una consulta directa ...")
+            df = get_data(proxy=False, method="api")
+        except Exception:
+            print("Intentado una consulta via proxy ...")
+            df = get_data(proxy=True, method="api")
+    except (Exception, SystemExit):
+        sys.exit("No puedo acceder al mapa")
     if df is not None:
         consolidate(df).to_csv(
             "data.csv",
