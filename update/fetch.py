@@ -6,9 +6,12 @@ from requests_toolbelt.multipart.encoder import MultipartEncoder
 from bs4 import BeautifulSoup
 
 import re
+import os
 import sys
 import time
 import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
@@ -68,6 +71,28 @@ DEFAULT_HEADERS = {
     "Sec-Fetch-Dest": "empty",
     "Referer": "https://www.proxydocker.com/es/proxylist/country/Bolivia",
 }
+
+TARGET_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "*/*",
+}
+
+
+def _proxy_cache_path():
+    env_path = os.getenv("PROXY_CACHE_PATH")
+    if env_path:
+        return Path(env_path)
+    xdg = os.getenv("XDG_CACHE_HOME")
+    if xdg:
+        return Path(xdg) / "transitabilidad" / "last_proxy.txt"
+    return Path.home() / ".cache" / "transitabilidad" / "last_proxy.txt"
+
+
+PROXY_TEST_TIMEOUT = 7
+PROXY_REQUEST_TIMEOUT = 20
+PROXY_TEST_WORKERS = 12
+FAIL_OPEN = True
 
 
 def _get_proxy_list():
@@ -194,21 +219,82 @@ def _get_proxy_list2():
     return [("https", f"{p['type'].lower()}://{p['ip']}:{p['port']}") for p in proxies]
 
 
-def proxy_request(url):
-    proxies = _get_proxy_list()
-    for proxy in proxies:
-        proxy = dict([proxy])
+def _load_cached_proxy():
+    path = _proxy_cache_path()
+    if path.exists():
         try:
-            return requests.get(
-                url,
-                verify=False,
-                proxies=proxy,
-                headers=DEFAULT_HEADERS,
-                timeout=20,
-            )
+            proxy = path.read_text().strip()
+            return ("https", proxy) if proxy else None
+        except Exception:
+            return None
+    return None
+
+
+def _save_cached_proxy(proxy):
+    try:
+        path = _proxy_cache_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(proxy)
+    except Exception:
+        pass
+
+
+def _collect_proxies():
+    proxies = []
+    for fn in (_get_proxy_list, _get_proxy_list2):
+        try:
+            proxies.extend(fn())
         except Exception as e:
-            print(f"Request error: {e}")
-            continue
+            print(f"Proxy source error: {e}")
+    unique = []
+    seen = set()
+    for _, proxy in proxies:
+        if proxy not in seen:
+            seen.add(proxy)
+            unique.append(("https", proxy))
+    random.shuffle(unique)
+    return unique
+
+
+def _try_proxy(url, proxy, timeout):
+    try:
+        resp = requests.get(
+            url,
+            verify=False,
+            proxies=proxy,
+            headers=TARGET_HEADERS,
+            timeout=timeout,
+        )
+        if resp.status_code >= 400:
+            return None
+        return resp
+    except Exception as e:
+        print(f"Request error: {e}")
+        return None
+
+
+def proxy_request(url):
+    cached = _load_cached_proxy()
+    if cached:
+        resp = _try_proxy(url, dict([cached]), PROXY_TEST_TIMEOUT)
+        if resp is not None:
+            return resp
+
+    proxies = _collect_proxies()
+    if not proxies:
+        raise Exception("no proxies available")
+
+    with ThreadPoolExecutor(max_workers=PROXY_TEST_WORKERS) as ex:
+        futures = {
+            ex.submit(_try_proxy, url, dict([proxy]), PROXY_TEST_TIMEOUT): proxy
+            for proxy in proxies
+        }
+        for fut in as_completed(futures):
+            resp = fut.result()
+            if resp is not None:
+                proxy = futures[fut]
+                _save_cached_proxy(proxy[1])
+                return resp
 
     raise Exception("non avail proxy")
 
@@ -284,7 +370,8 @@ def get_data(proxy=True, method="api"):
             api = requests.get(
                 url,
                 verify=False,
-                timeout=20,
+                timeout=PROXY_REQUEST_TIMEOUT,
+                headers=TARGET_HEADERS,
             ).json()
         if api:
             print(f"Se registran {len(api)} eventos")
@@ -297,9 +384,7 @@ def get_data(proxy=True, method="api"):
         else:
             return None
 
-    if method == "html":
-        data = from_html(proxy)
-    elif method == "api":
+    if method == "api":
         data = from_api(proxy)
     else:
         data = None
@@ -344,6 +429,9 @@ if __name__ == "__main__":
             print("Intentado una consulta via proxy ...")
             df = get_data(proxy=True, method="api")
     except (Exception, SystemExit):
+        if FAIL_OPEN:
+            print("No puedo acceder al mapa")
+            sys.exit(0)
         sys.exit("No puedo acceder al mapa")
     if df is not None:
         consolidate(df).to_csv(
