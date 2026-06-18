@@ -1,22 +1,57 @@
 #!/usr/bin/env python3
 
-import requests
-from requests_toolbelt.multipart.encoder import MultipartEncoder
-
-from bs4 import BeautifulSoup
-
-import re
 import os
 import sys
 import time
-import random
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+import requests
 
-from datetime import datetime, timezone, timedelta
+from google import genai
+from bs4 import BeautifulSoup
+from io import BytesIO
+from PIL import Image as PILImage
+
+
+BASE_URL = "https://transitabilidad.abc.gob.bo"
+API_URL = f"{BASE_URL}/api/v1/data"
+DATA_PATH = Path("data.csv")
+TIMEOUT = 30
+MAX_FETCH_ATTEMPTS = 5
+
+OUTPUT_COLUMNS = [
+    "fecha_consulta",
+    "fecha_reporte",
+    "fecha_fin",
+    "latitud",
+    "longitud",
+    "estado",
+    "sección",
+    "evento",
+    "clima",
+    "horario_de_corte",
+    "tipo_de_carretera",
+    "alternativa_de_circulación_o_desvios",
+    "restricción_vehicular",
+    "sector",
+    "trabajos_de_conservación_vial",
+]
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": f"{BASE_URL}/",
+    "X-Requested-With": "XMLHttpRequest",
+}
+
+GEMINI_KEY = os.environ["GEMINI_API_KEY"]
+GEMINI_MODEL = "gemini-2.5-flash"
 
 
 def normalize(text: str, key: bool = False):
@@ -49,369 +84,161 @@ def format_columns(df):
     df[col["float"]] = (
         df[col["float"]]
         .apply(
-            lambda _: _.astype(str)
-            .str.strip()
-            .apply(lambda __: float(__) if __ else np.nan)
+            lambda _: (
+                _.astype(str).str.strip().apply(lambda __: float(__) if __ else np.nan)
+            )
         )
         .round(5)
     )
     return df
 
 
-DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)",
-    "Sec-Ch-Ua-Platform": "Linux",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Sec-Ch-Ua": '"Not_A Brand";v="99", "Chromium";v="142"',
-    "Sec-Ch-Ua-Mobile": "?0",
-    "Accept": "*/*",
-    "Origin": "https://www.proxydocker.com",
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Dest": "empty",
-    "Referer": "https://www.proxydocker.com/es/proxylist/country/Bolivia",
-}
+def gemini_transcribe(session, image_url, headers, model):
+    client = genai.Client(api_key=GEMINI_KEY)
+    img_bytes = session.get(image_url, headers=headers).content
+    image = PILImage.open(BytesIO(img_bytes))
 
-TARGET_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept": "*/*",
-}
-
-
-def _proxy_cache_path():
-    env_path = os.getenv("PROXY_CACHE_PATH")
-    if env_path:
-        return Path(env_path)
-    xdg = os.getenv("XDG_CACHE_HOME")
-    if xdg:
-        return Path(xdg) / "transitabilidad" / "last_proxy.txt"
-    return Path.home() / ".cache" / "transitabilidad" / "last_proxy.txt"
-
-
-PROXY_TEST_TIMEOUT = 7
-PROXY_REQUEST_TIMEOUT = 20
-PROXY_TEST_WORKERS = 12
-FAIL_OPEN = True
-
-
-def _get_proxy_list():
-    sess = requests.session()
-
-    req = sess.get(
-        "https://www.proxydocker.com/es/proxylist/country/Bolivia",
-        headers=DEFAULT_HEADERS,
+    response = client.models.generate_content(
+        model=model,
+        contents=[
+            "Transcribe this 6-character hexadecimal string shown in the image. Return exactly 6 characters, with no spaces, punctuation, markdown, or explanation.",
+            image,
+        ],
     )
-    if "CAPTCHA Check" in req.text:
-        time.sleep(1 + 3 * random.random())
 
-        mp_encoder = MultipartEncoder({})
-        req = sess.post(
-            "https://www.proxydocker.com/api/captcha/check",
-            data=mp_encoder,
-            headers={**DEFAULT_HEADERS, "Content-Type": mp_encoder.content_type},
-        )
+    return response.text
 
-        req = sess.get(
-            "https://www.proxydocker.com/es/proxylist/country/Bolivia",
-            headers=DEFAULT_HEADERS,
-        )
 
-    html = BeautifulSoup(req.content, "html.parser")
+def fetch_events():
 
-    meta = html.findChild("meta", attrs={"name": "_token"})
-    token = meta.attrs["content"]
+    BASE = "https://transitabilidad.abc.gob.bo"
 
-    PROXY_TYPES = {
-        "1": "http",
-        "2": "https",
-        "12": "https",
-        "3": "socks4",
-        "4": "socks5",
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Sec-GPC": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Priority": "u=0, i",
+        "Pragma": "no-cache",
+        "Cache-Control": "no-cache",
     }
 
-    proxy_data = {
-        "token": token,
-        "country": "Bolivia",
-        "city": "all",
-        "state": "all",
-        "port": "all",
-        "type": "all",
-        "anonymity": "all",
-        "need": "all",
-        "page": 1,
+    session = requests.Session()
+
+    form = session.get(f"{BASE}/captcha-form", headers=headers)
+    html = BeautifulSoup(form.text, "html.parser")
+    captcha_url = html.select_one("#captcha-img")["src"]
+    csrf_token = html.select_one('input[name="_token"]')["value"]
+    captcha_text = gemini_transcribe(
+        session,
+        captcha_url,
+        {**headers, "Referer": f"{BASE}/captcha-form"},
+        GEMINI_MODEL,
+    )
+    print(captcha_text)
+    captcha_response = session.post(
+        f"{BASE}/captcha",
+        headers={**headers, "Referer": f"{BASE}/captcha-form"},
+        data={"_token": csrf_token, "captcha": captcha_text},
+        allow_redirects=False,
+    )
+    home = session.get(f"{BASE}/", headers=headers)
+    api_headers = {
+        "User-Agent": headers["User-Agent"],
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": headers["Accept-Language"],
+        "Referer": f"{BASE}/",
+        "X-Requested-With": "XMLHttpRequest",
     }
-    proxies = []
 
-    for page in range(1, 3):
-        proxy_data["page"] = page
-        req = sess.post(
-            "https://www.proxydocker.com/es/api/proxylist/",
-            data=proxy_data,
-            headers={"X-Requested-With": "XMLHttpRequest", **DEFAULT_HEADERS},
-        )
-
-        payload = req.json()
-        if "proxies" in payload and len(payload["proxies"]) > 0:
-            proxies.extend(payload["proxies"])
-        else:
-            break
-
-    proxies = [
-        ("https", "{}://{}:{}".format(PROXY_TYPES[_["type"]], _["ip"], _["port"]))
-        for _ in proxies
-        if _["type"] in PROXY_TYPES.keys()
-    ]
-
-    return proxies
-
-
-def _get_proxy_list2():
-    def source_proxyhub():
-        url = "https://proxyhub.me/en/bo-socks5-proxy-list.html"
-        r = requests.get(url)
-        html = BeautifulSoup(r.text, "html.parser")
-
-        proxies = [
-            {
-                k: row.select("td")[v].get_text()
-                for k, v in zip(["ip", "port", "type"], [0, 1, 2])
-            }
-            for row in html.select("tbody tr")
-        ]
-        return proxies
-
-    def source_freeproxy():
-        url = "https://www.freeproxy.world/?country=BO"
-        r = requests.get(url)
-        html = BeautifulSoup(r.text, "html.parser")
-
-        proxies = [
-            {
-                k: row.select("td")[v].get_text().strip()
-                for k, v in zip(["ip", "port", "type"], [0, 1, 5])
-            }
-            for row in html.select("tbody tr")
-        ]
-        return proxies
-
-    def source_ditatompel():
-        url = "https://www.ditatompel.com/proxy/country/bo"
-        r = requests.get(url)
-        html = BeautifulSoup(r.text, "html.parser")
-
-        proxies = [
-            {
-                "ip": row.select("td")[0]
-                .select("strong")[0]
-                .get_text()
-                .replace(":", ""),
-                "port": row.select("td")[0].select("span")[0].get_text(),
-                "type": row.select("td")[1].select("a")[0].get_text(),
-            }
-            for row in html.select("tbody tr")
-        ]
-
-        return proxies
-
-    # proxies = sum([source_freeproxy(), source_proxyhub(), source_ditatompel()], [])
-    proxies = source_freeproxy()
-    return [("https", f"{p['type'].lower()}://{p['ip']}:{p['port']}") for p in proxies]
-
-
-def _load_cached_proxy():
-    path = _proxy_cache_path()
-    if path.exists():
-        try:
-            proxy = path.read_text().strip()
-            return ("https", proxy) if proxy else None
-        except Exception:
-            return None
-    return None
-
-
-def _save_cached_proxy(proxy):
-    try:
-        path = _proxy_cache_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(proxy)
-    except Exception:
-        pass
-
-
-def _collect_proxies():
-    proxies = []
-    for fn in (_get_proxy_list, _get_proxy_list2):
-        try:
-            proxies.extend(fn())
-        except Exception as e:
-            print(f"Proxy source error: {e}")
-    unique = []
-    seen = set()
-    for _, proxy in proxies:
-        if proxy not in seen:
-            seen.add(proxy)
-            unique.append(("https", proxy))
-    random.shuffle(unique)
-    return unique
-
-
-def _try_proxy(url, proxy, timeout):
-    try:
-        resp = requests.get(
-            url,
-            verify=False,
-            proxies=proxy,
-            headers=TARGET_HEADERS,
-            timeout=timeout,
-        )
-        if resp.status_code >= 400:
-            return None
-        return resp
-    except Exception as e:
-        print(f"Request error: {e}")
-        return None
-
-
-def proxy_request(url):
-    cached = _load_cached_proxy()
-    if cached:
-        resp = _try_proxy(url, dict([cached]), PROXY_TEST_TIMEOUT)
-        if resp is not None:
-            return resp
-
-    proxies = _collect_proxies()
-    if not proxies:
-        raise Exception("no proxies available")
-
-    with ThreadPoolExecutor(max_workers=PROXY_TEST_WORKERS) as ex:
-        futures = {
-            ex.submit(_try_proxy, url, dict([proxy]), PROXY_TEST_TIMEOUT): proxy
-            for proxy in proxies
-        }
-        for fut in as_completed(futures):
-            resp = fut.result()
-            if resp is not None:
-                proxy = futures[fut]
-                _save_cached_proxy(proxy[1])
-                return resp
-
-    raise Exception("non avail proxy")
-
-
-def get_data(proxy=True, method="api"):
-    def from_html(proxy):
-        data = []
-        url = "https://transitabilidad.abc.gob.bo/mapa"
-        if proxy:
-            html = proxy_request(url).text
-        else:
-            html = requests.get(url, verify=False).text
-        popups = re.findall(r"\.bindPopup\(\'<img alt\=\"\" src\=.*", html)
-        for popup in popups:
-            if "youtube" not in popup:
-                point = {}
-                soup = BeautifulSoup("".join(popup.split("' + '")), "html.parser")
-                fields = soup.select('b[style*="color: #f5b041"]')
-                fields.extend(soup.select("b")[-2:])
-                for field in fields:
-                    point[normalize(field.get_text(), key=True)] = normalize(
-                        str(field.next_sibling)
-                    )
-                data.append(point)
-        if data:
-            df = pd.DataFrame(data)
-            df["fecha_consulta"] = now
-            df["fecha_consulta"] = df["fecha_consulta"].dt.tz_localize(None)
-            df["fecha_fin"] = ""
-            df = format_columns(df)
-            return df.sort_values(["fecha_reporte", "sección"])
-        else:
-            return None
-
-    def from_api(proxy):
-        def process_event(e):
-            event = dict(
-                fecha_consulta=now,
-                fecha_reporte=e["fecha_registro_hora"],
-                fecha_fin="",
-                latitud=e["latitud_inicio_seccion"],
-                longitud=e["longitud_inicio_seccion"],
-                estado=normalize(
-                    f"{e['estado']['codigo_estado']} - {e['estado']['descripcion_estado']}"
-                ),
-                sección=normalize(f"{e['inicio_seccion']} - {e['fin_seccion']}"),
-                evento=normalize(e["evento"]["descripcion_evento"]),
-                clima=normalize(e["clima"]["descripcion_clima"]),
-                horario_de_corte=normalize(
-                    e["horario_corte"]["descripcion_horario_de_corte"]
-                ),
-                tipo_de_carretera=normalize(
-                    e["tipo_carretera"]["descripcion_tipo_carretera"]
-                ),
-                alternativa_de_circulación_o_desvios=normalize(
-                    e["transitable_con_desvio"]["descripcion_transitable_con_desvio"]
-                ),
-                restricción_vehicular=normalize(
-                    e["restriccion_vehicular"]["descripcion_restriccion_vehicular"]
-                ),
-                sector=normalize(e["descr_sector"]) if e["descr_sector"] else "",
-                trabajos_de_conservación_vial=normalize(
-                    e["trabajos_conservacion"]["descripcion_trabajos_conservacion_vial"]
-                ),
-            )
-            return event
-
-        url = "https://transitabilidad.abc.gob.bo/api/v1/data"
-        print("Consultando eventos via API ...")
-        if proxy:
-            api = proxy_request(url).json()
-        else:
-            api = requests.get(
-                url,
-                verify=False,
-                timeout=PROXY_REQUEST_TIMEOUT,
-                headers=TARGET_HEADERS,
-            ).json()
-        if api:
-            print(f"Se registran {len(api)} eventos")
-            data = [process_event(e) for e in api]
-            df = pd.DataFrame(data)
-            df["fecha_consulta"] = df["fecha_consulta"].dt.tz_localize(None)
-            df["fecha_fin"] = ""
-            df = format_columns(df)
-            return df.sort_values(["fecha_reporte", "sección"])
-        else:
-            return None
-
-    if method == "api":
-        data = from_api(proxy)
+    api = session.get(f"{BASE}/api/v1/data", headers=api_headers)
+    if api.status_code == 200:
+        return api.json()
     else:
-        data = None
-    return data
+        raise RuntimeError("Error fetching data")
 
 
-def consolidate(df):
+def fetch_events_with_retries():
+    last_error = None
+    for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
+        try:
+            return fetch_events()
+        except Exception as exc:
+            last_error = exc
+            if attempt < MAX_FETCH_ATTEMPTS:
+                print(f"Intento {attempt} falló: {exc}")
+                time.sleep(attempt)
+    raise last_error
+
+
+def event_to_row(event, now):
+    return dict(
+        fecha_consulta=now,
+        fecha_reporte=event["fecha_registro_hora"],
+        fecha_fin="",
+        latitud=event["latitud_inicio_seccion"],
+        longitud=event["longitud_inicio_seccion"],
+        estado=normalize(
+            f"{event['estado']['codigo_estado']} - "
+            f"{event['estado']['descripcion_estado']}"
+        ),
+        sección=normalize(f"{event['inicio_seccion']} - {event['fin_seccion']}"),
+        evento=normalize(event["evento"]["descripcion_evento"]),
+        clima=normalize(event["clima"]["descripcion_clima"]),
+        horario_de_corte=normalize(
+            event["horario_corte"]["descripcion_horario_de_corte"]
+        ),
+        tipo_de_carretera=normalize(
+            event["tipo_carretera"]["descripcion_tipo_carretera"]
+        ),
+        alternativa_de_circulación_o_desvios=normalize(
+            event["transitable_con_desvio"]["descripcion_transitable_con_desvio"]
+        ),
+        restricción_vehicular=normalize(
+            event["restriccion_vehicular"]["descripcion_restriccion_vehicular"]
+        ),
+        sector=normalize(event["descr_sector"]) if event["descr_sector"] else "",
+        trabajos_de_conservación_vial=normalize(
+            event["trabajos_conservacion"]["descripcion_trabajos_conservacion_vial"]
+        ),
+    )
+
+
+def get_data(now):
+    print("Consultando eventos via API ...")
+    events = fetch_events_with_retries()
+    print(f"Se registran {len(events)} eventos")
+
+    df = pd.DataFrame(
+        [event_to_row(event, now) for event in events],
+        columns=OUTPUT_COLUMNS,
+    )
+    df["fecha_consulta"] = df["fecha_consulta"].dt.tz_localize(None)
+    df["fecha_fin"] = ""
+    df = format_columns(df)
+    return df.sort_values(["fecha_reporte", "sección"])
+
+
+def consolidate(df, now):
     print("Consolidando eventos ...")
-    # retrieve saved entries
-    oldf = pd.read_csv("data.csv", na_filter=False)
+    oldf = pd.read_csv(DATA_PATH, na_filter=False)
     oldf = format_columns(oldf)
 
-    # compare entries and filter duplicates
     compare_cols = ["fecha_reporte", "latitud", "longitud"]
     joindf = pd.concat([oldf, df], axis=0, ignore_index=True)
     duplicates = joindf[joindf.duplicated(subset=compare_cols, keep="last")]
 
-    # get entries that are not present in the newly fetched data
     expired = pd.concat([oldf, duplicates], axis=0, ignore_index=True)
     expired = expired[~expired.duplicated(subset=compare_cols, keep=False)]
     expired.loc[expired["fecha_fin"].isna(), ["fecha_fin"]] = now.replace(tzinfo=None)
 
-    # get new entries
     new = pd.concat([df, duplicates], axis=0, ignore_index=True)
     new = new[~new.duplicated(subset=compare_cols, keep=False)]
-
-    # join expired, duplicates and new entries
 
     finaldf = pd.concat(
         [expired, duplicates, new], axis=0, ignore_index=True
@@ -419,41 +246,20 @@ def consolidate(df):
     return format_columns(finaldf)
 
 
+def write_data(df):
+    df.to_csv(
+        DATA_PATH,
+        index=False,
+        date_format="%Y-%m-%d %H:%M:%S",
+        float_format="%.5f",
+        columns=OUTPUT_COLUMNS,
+    )
+
+
 if __name__ == "__main__":
     now = datetime.now(timezone(timedelta(hours=-4)))
     try:
-        try:
-            print("Intentado una consulta directa ...")
-            df = get_data(proxy=False, method="api")
-        except Exception:
-            print("Intentado una consulta via proxy ...")
-            df = get_data(proxy=True, method="api")
-    except (Exception, SystemExit):
-        if FAIL_OPEN:
-            print("No puedo acceder al mapa")
-            sys.exit(0)
-        sys.exit("No puedo acceder al mapa")
-    if df is not None:
-        consolidate(df).to_csv(
-            "data.csv",
-            index=False,
-            date_format="%Y-%m-%d %H:%M:%S",
-            float_format="%.5f",
-            columns=[
-                "fecha_consulta",
-                "fecha_reporte",
-                "fecha_fin",
-                "latitud",
-                "longitud",
-                "estado",
-                "sección",
-                "evento",
-                "clima",
-                "horario_de_corte",
-                "tipo_de_carretera",
-                "alternativa_de_circulación_o_desvios",
-                "restricción_vehicular",
-                "sector",
-                "trabajos_de_conservación_vial",
-            ],
-        )
+        data = get_data(now)
+        write_data(consolidate(data, now))
+    except Exception as exc:
+        sys.exit(f"No puedo acceder a la API de transitabilidad: {exc}")

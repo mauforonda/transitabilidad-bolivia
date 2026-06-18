@@ -29,6 +29,7 @@ jobs:
       - name: run update script
         env:
           PROXY_CACHE_PATH: .cache/transitabilidad/last_proxy.txt
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python update/fetch.py
         id: run_update_script
