@@ -172,7 +172,7 @@ def fetch_events_with_retries():
             last_error = exc
             if attempt < MAX_FETCH_ATTEMPTS:
                 print(f"Intento {attempt} falló: {exc}")
-                time.sleep(attempt)
+                time.sleep(10)
     raise last_error
 
 

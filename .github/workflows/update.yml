@@ -17,6 +17,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+          cache: pip
+          cache-dependency-path: update/requirements.txt
       - name: install python and dependencies
         run: |
           python -m pip install --upgrade pip
