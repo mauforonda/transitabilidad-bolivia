@@ -51,7 +51,7 @@ HEADERS = {
 }
 
 GEMINI_KEY = os.environ["GEMINI_API_KEY"]
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.1-flash-lite"
 
 
 def normalize(text: str, key: bool = False):
