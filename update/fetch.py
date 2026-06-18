@@ -10,6 +10,8 @@ import os
 import sys
 import time
 import random
+
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -17,6 +19,13 @@ import pandas as pd
 import numpy as np
 
 from datetime import datetime, timezone, timedelta
+
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+
+
+semaphore = threading.Semaphore(1)
 
 
 def normalize(text: str, key: bool = False):
@@ -79,14 +88,14 @@ TARGET_HEADERS = {
 }
 
 
-def _proxy_cache_path():
+def _proxy_cache_path(fn='last_proxy.txt'):
     env_path = os.getenv("PROXY_CACHE_PATH")
     if env_path:
         return Path(env_path)
     xdg = os.getenv("XDG_CACHE_HOME")
     if xdg:
-        return Path(xdg) / "transitabilidad" / "last_proxy.txt"
-    return Path.home() / ".cache" / "transitabilidad" / "last_proxy.txt"
+        return Path(xdg) / "transitabilidad" / fn
+    return Path('.') / ".cache" / "transitabilidad" / fn
 
 
 PROXY_TEST_TIMEOUT = 7
@@ -239,6 +248,21 @@ def _save_cached_proxy(proxy):
         pass
 
 
+def _load_cached_cookie():
+    path = _proxy_cache_path('last_cookie.txt')
+    if path.exists():
+        return path.read_text().strip()
+    return ''
+
+def _save_cached_cookie(cookie):
+    try:
+        path = _proxy_cache_path('last_cookie.txt')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(cookie)
+    except Exception:
+        pass
+
+
 def _collect_proxies():
     proxies = []
     for fn in (_get_proxy_list, _get_proxy_list2):
@@ -257,16 +281,23 @@ def _collect_proxies():
 
 
 def _try_proxy(url, proxy, timeout):
+    cookied = _load_cached_cookie()
+
     try:
         resp = requests.get(
             url,
             verify=False,
             proxies=proxy,
-            headers=TARGET_HEADERS,
+            headers={**TARGET_HEADERS, 'Cookie': cookied},
             timeout=timeout,
         )
         if resp.status_code >= 400:
             return None
+
+        if resp.cookies:
+            with semaphore:
+                _save_cached_cookie(resp.cookies)
+
         return resp
     except Exception as e:
         print(f"Request error: {e}")
@@ -306,7 +337,7 @@ def get_data(proxy=True, method="api"):
         if proxy:
             html = proxy_request(url).text
         else:
-            html = requests.get(url, verify=False).text
+            html = requests.get(url, verify=False, headers={'Cookie': _load_cached_cookie()}).text
         popups = re.findall(r"\.bindPopup\(\'<img alt\=\"\" src\=.*", html)
         for popup in popups:
             if "youtube" not in popup:
@@ -371,7 +402,7 @@ def get_data(proxy=True, method="api"):
                 url,
                 verify=False,
                 timeout=PROXY_REQUEST_TIMEOUT,
-                headers=TARGET_HEADERS,
+                headers={**TARGET_HEADERS, 'Cookie': _load_cached_cookie()},
             ).json()
         if api:
             print(f"Se registran {len(api)} eventos")
