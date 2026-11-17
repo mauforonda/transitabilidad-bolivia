@@ -96,19 +96,20 @@ def resolver_captcha(sesion: requests.Session, url_imagen: str) -> str:
     respuesta.raise_for_status()
     imagen = Image.open(BytesIO(respuesta.content))
 
-    resultado = genai.Client(
-        api_key=os.environ["GEMINI_API_KEY"]
-    ).models.generate_content(
-        model=MODELO_GEMINI,
-        contents=[
-            (
-                "Transcribe this 6-character hexadecimal string shown in the image. "
-                "Return exactly 6 characters, with no spaces, punctuation, markdown, "
-                "or explanation."
-            ),
-            imagen,
-        ],
-    )
+    # El cliente debe seguir referenciado durante la petición: si se descarta,
+    # Python lo cierra y la llamada falla con "the client has been closed".
+    with genai.Client(api_key=os.environ["GEMINI_API_KEY"]) as cliente:
+        resultado = cliente.models.generate_content(
+            model=MODELO_GEMINI,
+            contents=[
+                (
+                    "Transcribe this 6-character hexadecimal string shown in the "
+                    "image. Return exactly 6 characters, with no spaces, "
+                    "punctuation, markdown, or explanation."
+                ),
+                imagen,
+            ],
+        )
     texto = (resultado.text or "").strip().lower()
     if not PATRON_CAPTCHA.fullmatch(texto):
         raise RuntimeError(f"Transcripción de captcha inválida: {texto!r}")
