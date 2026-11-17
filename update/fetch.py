@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import requests
+import urllib3
 
 from google import genai
 from bs4 import BeautifulSoup
@@ -129,6 +130,8 @@ def fetch_events():
     }
 
     session = requests.Session()
+    session.verify = False
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     form = session.get(f"{BASE}/captcha-form", headers=headers)
     html = BeautifulSoup(form.text, "html.parser")
