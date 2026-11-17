@@ -1,0 +1,6 @@
+beautifulsoup4==4.15.0
+google-genai==2.8.0
+pandas==3.0.3
+pillow==12.2.0
+requests==2.34.2
+urllib3==2.7.0

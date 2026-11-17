@@ -1,0 +1,291 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/datapackage.json",
+  "name": "transitabilidad_bolivia",
+  "title": "Transitabilidad en carreteras de Bolivia (histórico de eventos de la ABC)",
+  "description": "Histórico de los eventos de transitabilidad que publica la Agencia Boliviana de Caminos (ABC): bloqueos por conflictos sociales, derrumbes, restricciones vehiculares, obras y otros. Un script consulta la API pública de la ABC cada dos horas y agrega los eventos nuevos y la fecha en que dejan de aparecer. Sirve, por ejemplo, como indicador de conflictividad territorial medida como bloqueo de carreteras.",
+  "homepage": "https://github.com/mauforonda/transitabilidad-bolivia",
+  "sources": [
+    {
+      "title": "Sistema de transitabilidad, Agencia Boliviana de Caminos (ABC)",
+      "path": "https://transitabilidad.abc.gob.bo"
+    }
+  ],
+  "idioma": "es",
+  "primer_paso": "Una fila no es un bloqueo: la fuente vuelve a registrar los eventos vigentes. Para medir conflicto filtre estado LIKE 'e -%', excluya la coordenada (0, 0) y cuente episodios, no filas. Trate fecha_fin nula como vigente. Lea 'advertencias' antes de comparar años o de usar horas.",
+  "resources": [
+    {
+      "name": "data",
+      "path": "data.csv",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "description": "Una fila por evento de transitabilidad. Un evento nuevo se agrega en cada corrida y las filas cerradas conservan su fecha_fin. Las filas están ordenadas por fecha_reporte y sección. Clave natural (fecha_reporte, latitud, longitud).",
+      "schema": {
+        "fields": [
+          {
+            "name": "fecha_consulta",
+            "type": "datetime",
+            "format": "%Y-%m-%d %H:%M:%S",
+            "description": "Momento de la corrida en que el evento apareció por primera vez en la API de la ABC. Hora de Bolivia (GMT-4), sin zona en el texto. Es la cota superior del momento en que el evento se hizo público: la mediana de fecha_consulta − fecha_reporte es 1,1 h y el percentil 99 es 7,5 h. En 133 filas es anterior a fecha_reporte."
+          },
+          {
+            "name": "fecha_reporte",
+            "type": "datetime",
+            "format": "%Y-%m-%d %H:%M:%S",
+            "description": "Momento en que la ABC registró el evento (`fecha_registro_hora` de la fuente). Hora de Bolivia (GMT-4). No es el inicio del bloqueo: la fuente vuelve a registrar eventos vigentes con una nueva fecha_reporte (32 % de las filas de conflicto tienen hora 06). Para el inicio de un bloqueo use el primer registro de un episodio."
+          },
+          {
+            "name": "fecha_fin",
+            "type": "datetime",
+            "format": "%Y-%m-%d %H:%M:%S",
+            "description": "Primera corrida en que un evento que estaba abierto ya no aparece en la API. Hora de Bolivia (GMT-4). Nulo significa que el evento seguía vigente en la última corrida (18 filas el 2026-11-17). Es una cota superior del fin real, con un retraso de horas. Dos filas tienen fecha_fin anterior a fecha_reporte.",
+            "constraints": {
+              "required": false
+            }
+          },
+          {
+            "name": "latitud",
+            "type": "number",
+            "description": "Latitud en grados decimales (5 decimales) del inicio de la sección. Marca el punto del tramo, no el sitio exacto del bloqueo. 225 filas tienen (0, 0): es un valor inválido, excluya antes de agrupar por lugar.",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "longitud",
+            "type": "number",
+            "description": "Longitud en grados decimales (5 decimales). Siempre es negativa en Bolivia. Siete filas tienen longitud positiva (67,92518) y su signo está invertido. 225 filas tienen (0, 0): excluya antes de agrupar por lugar.",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "estado",
+            "type": "string",
+            "description": "Estado de transitabilidad asignado por la ABC, con el formato `<letra> - <descripción>`. Úselo para clasificar conflictos: `e - no transitable por conflictos sociales` es la categoría de conflicto (11 084 filas). Filtre con `estado LIKE 'e -%'`.",
+            "constraints": {
+              "required": true
+            },
+            "categories": [
+              {
+                "value": "b - transitable con precaución",
+                "label": "Transitable con precaución"
+              },
+              {
+                "value": "c - transitable con desvios",
+                "label": "Transitable con desvíos"
+              },
+              {
+                "value": "d - no transitable, trafico cerrado",
+                "label": "Tráfico cerrado, no transitable"
+              },
+              {
+                "value": "e - no transitable por conflictos sociales",
+                "label": "No transitable por conflictos sociales"
+              },
+              {
+                "value": "g - restriccion vehicular",
+                "label": "Restricción vehicular"
+              },
+              {
+                "value": "h - restriccion vehicular, especial",
+                "label": "Restricción vehicular especial"
+              },
+              {
+                "value": "i - obstruccion por trabajos de limpieza",
+                "label": "Obstrucción por trabajos de limpieza"
+              }
+            ]
+          },
+          {
+            "name": "sección",
+            "type": "string",
+            "description": "Tramo de carretera como `<inicio> - <fin>`, en minúsculas. No es un identificador estable: 192 secciones tienen más de una coordenada (178 con puntos separados por más de 1 km) y 666 filas contienen `?` donde la fuente perdió un carácter acentuado.",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "evento",
+            "type": "string",
+            "description": "Causa o tipo de evento (45 valores: `bloqueo por motivos sociales`, `bloqueo`, `bloqueo por demandas locales`, `derrumbe`, `tramo en construccion`, `ningun evento`, entre otros). Puede ser incoherente con estado: 1 344 filas con estado `e` dicen `ningun evento` y 436 filas con otro estado dicen `bloqueo*`.",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "clima",
+            "type": "string",
+            "description": "Clima reportado y su duración (51 valores, por ejemplo `despejado, todo el dia`). La fuente cambió la redacción: `despejado` y `despejado, todo el dia` coexisten.",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "horario_de_corte",
+            "type": "string",
+            "description": "Horario del corte en texto libre (283 valores). `sin horario de corte`, `hasta nuevo aviso` y `con horario, trafico cerrado...` con horas incluidas.",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "tipo_de_carretera",
+            "type": "string",
+            "description": "Tipo de carretera (12 valores). La redacción cambió con el tiempo: `asfaltada` y `carretera asfaltada` son lo mismo. Pasa igual con `de tierra o ripio`, `en construcción` y `en definición`, con o sin `doble vía`.",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "alternativa_de_circulación_o_desvios",
+            "type": "string",
+            "description": "Alternativa de circulación (5 valores): `no se tiene alternativa de circulación`, `circulación normal`, `circulación por una vía`, `existen desvios alternos`, `se habilitó un desvio alterno`.",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "restricción_vehicular",
+            "type": "string",
+            "description": "Restricción vehicular (24 valores). Coexisten redacciones con y sin el sufijo `, todo tipo de vehiculos`.",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "sector",
+            "type": "string",
+            "description": "Detalle libre del lugar (4 077 valores): kilometraje, puentes, progresivas o localidades. Nulo en 2 948 filas (7 %). Sirve para leer un caso, no para agrupar.",
+            "constraints": {
+              "required": false
+            }
+          },
+          {
+            "name": "trabajos_de_conservación_vial",
+            "type": "string",
+            "description": "Trabajos de conservación vial (5 valores: `ningún trabajo`, `mantenimiento de la vía`, `... con maquinaria`, `... con equipo pesado`, `... en diferentes sectores`).",
+            "constraints": {
+              "required": true
+            }
+          }
+        ],
+        "missingValues": [
+          ""
+        ],
+        "primaryKey": [
+          "fecha_reporte",
+          "latitud",
+          "longitud"
+        ]
+      }
+    }
+  ],
+  "advertencias": [
+    {
+      "id": "fila_no_es_bloqueo",
+      "texto": "Una fila es un registro de la fuente, no un bloqueo. La fuente vuelve a registrar los eventos vigentes con una nueva fecha_reporte y el registro anterior se cierra después. En 2026, 90 % de las filas de conflicto se solapa en el tiempo con una fila previa de la misma coordenada (63 % en 2021). Contar filas sobreestima y distorsiona las comparaciones entre años: en 2026 hay 4 325 filas de conflicto y 513 episodios, y en 2024 hay 2 133 filas y 469 episodios (sin la coordenada (0, 0)). Cuente episodios (ver ejemplos)."
+    },
+    {
+      "id": "fecha_reporte_no_es_inicio",
+      "texto": "fecha_reporte es el momento del último registro, no el inicio del bloqueo. El 32 % de las filas de conflicto tiene hora 06 y las horas 06 a 08 concentran 55 %. Para estimar el inicio use el primer registro de un episodio y no extraiga patrones de hora del día ni de día de la semana a partir de fecha_reporte."
+    },
+    {
+      "id": "fecha_fin_es_cota",
+      "texto": "fecha_fin es la primera corrida en que el evento ya no aparece. Nulo significa vigente en la última corrida, no ausente. Una fila de conflicto dura entre 0 y 3,4 días (mediana 15 h): un bloqueo largo es una cadena de filas. Un episodio de conflicto dura una mediana de 1 día y un máximo de 46 días. Trate las filas abiertas como censuradas por la derecha."
+    },
+    {
+      "id": "cobertura_temporal",
+      "texto": "La colección comienza el 2020-08-15 (12 filas con fecha_reporte anterior). La tabla no guarda un registro de corridas: una corrida fallida y un periodo sin cambios son indistinguibles. Hay 106 intervalos de más de 24 h sin ninguna alta ni cierre (máximo 4 días y 1 h). Un mes sin conflictos no es necesariamente un fallo: en julio de 2026 hay altas casi todos los días y 0 filas de conflicto. Antes de interpretar un cero compruebe que haya altas en esos días."
+    },
+    {
+      "id": "definicion_de_conflicto",
+      "texto": "El proxy de conflicto es estado = `e - no transitable por conflictos sociales` (11 084 filas). Como alternativa, evento LIKE 'bloqueo%' da 9 895 filas, y las dos definiciones coinciden en 9 459. El estado e incluye eventos de otra causa (accidente de tránsito 55, caída de rocas 41, cuarentena sanitaria 35, tramo en construcción 33). Aclare la definición que usa."
+    },
+    {
+      "id": "coordenadas",
+      "texto": "225 filas (161 de conflicto) tienen latitud = 0 y longitud = 0 y mezclan secciones distintas: excluya (0, 0) antes de agrupar por lugar o de dibujar un mapa. 7 filas tienen la longitud con el signo invertido. La coordenada es el inicio de la sección: el mismo tramo aparece con varias coordenadas y ninguna de las dos (coordenada, sección) identifica un lugar de forma estable. Entre las 993 coordenadas distintas hay puntos casi iguales: 68 tienen otra a menos de 100 m. Dos coordenadas distintas no son necesariamente dos lugares distintos."
+    },
+    {
+      "id": "sin_identificador",
+      "texto": "No hay identificador. El evento se identifica con (fecha_reporte, latitud, longitud), que es único. Si la fuente emite dos eventos con la misma clave solo se conserva el primero. Un evento que reaparece con la misma clave después de cerrarse se conserva cerrado."
+    },
+    {
+      "id": "texto",
+      "texto": "Todo el texto está en minúsculas. La redacción de tipo_de_carretera, restricción_vehicular y clima cambió con el tiempo (`asfaltada` y `carretera asfaltada`). Normalice antes de agrupar. 666 filas tienen `?` en sección por pérdida de caracteres."
+    },
+    {
+      "id": "zona_horaria",
+      "texto": "Las fechas son horas de Bolivia (GMT-4) sin indicación de zona. No las convierta como si fueran UTC."
+    },
+    {
+      "id": "alcance",
+      "texto": "La tabla refleja lo que la ABC publica y cuándo lo publica. Cubre solo conflictos que se registran como bloqueo de carretera. No hay estimación del subregistro."
+    }
+  ],
+  "ejemplos": [
+    {
+      "titulo": "Crear la vista episodios (los ejemplos siguientes con episodios la necesitan)",
+      "duckdb": "CREATE OR REPLACE VIEW episodios AS WITH ultima AS ( SELECT max(fecha_consulta) AS t FROM 'data.csv' ), conflictos AS ( SELECT d.*, max(coalesce(d.fecha_fin, ultima.t)) OVER ( PARTITION BY d.latitud, d.longitud ORDER BY d.fecha_reporte ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING ) AS fin_previo FROM 'data.csv' d CROSS JOIN ultima WHERE d.estado LIKE 'e -%' AND NOT (d.latitud = 0 AND d.longitud = 0) ), marcadas AS ( SELECT *, sum((fin_previo IS NULL OR fecha_reporte > fin_previo + INTERVAL 24 HOUR)::INT) OVER ( PARTITION BY latitud, longitud ORDER BY fecha_reporte ) AS episodio FROM conflictos ) SELECT latitud, longitud, episodio, min(fecha_reporte) AS inicio, CASE WHEN bool_or(fecha_fin IS NULL) THEN NULL ELSE max(fecha_fin) END AS fin, count(*) AS filas FROM marcadas GROUP BY latitud, longitud, episodio;"
+    },
+    {
+      "titulo": "Filas de conflicto según estado y según evento",
+      "duckdb": "SELECT estado LIKE 'e -%' AS estado_conflicto, evento LIKE 'bloqueo%' AS evento_bloqueo, count(*) AS filas FROM 'data.csv' GROUP BY ALL ORDER BY ALL;"
+    },
+    {
+      "titulo": "Causas registradas dentro del estado de conflicto",
+      "duckdb": "SELECT evento, count(*) AS filas FROM 'data.csv' WHERE estado LIKE 'e -%' GROUP BY evento ORDER BY filas DESC LIMIT 10;"
+    },
+    {
+      "titulo": "Episodios de conflicto por año de inicio",
+      "duckdb": "SELECT year(inicio) AS anio, count(*) AS episodios FROM episodios GROUP BY anio ORDER BY anio;"
+    },
+    {
+      "titulo": "Episodios activos cada día al mediodía",
+      "duckdb": "SELECT d::DATE AS dia, count(*) AS episodios_activos FROM generate_series(TIMESTAMP '2026-05-01 12:00', TIMESTAMP '2026-06-30 12:00', INTERVAL 1 DAY) AS g(d) JOIN episodios e ON e.inicio <= d AND (e.fin IS NULL OR e.fin >= d) GROUP BY dia ORDER BY dia;"
+    },
+    {
+      "titulo": "Duración de los episodios en días",
+      "duckdb": "SELECT round(median(dias), 1) AS mediana, round(quantile_cont(dias, 0.9), 1) AS percentil_90, round(max(dias), 1) AS maximo FROM ( SELECT epoch(coalesce(fin, (SELECT max(fecha_consulta) FROM 'data.csv')) - inicio) / 86400 AS dias FROM episodios );"
+    },
+    {
+      "titulo": "Episodios nuevos por día de inicio",
+      "duckdb": "SELECT inicio::DATE AS dia, count(*) AS episodios_nuevos FROM episodios WHERE inicio >= '2026-05-01' AND inicio < '2026-07-01' GROUP BY dia ORDER BY dia;"
+    },
+    {
+      "titulo": "Lugares con más episodios (coordenadas redondeadas a 2 decimales)",
+      "duckdb": "SELECT round(latitud, 2) AS latitud, round(longitud, 2) AS longitud, count(*) AS episodios FROM episodios GROUP BY ALL ORDER BY episodios DESC LIMIT 10;"
+    },
+    {
+      "titulo": "Filas con coordenadas inválidas",
+      "duckdb": "SELECT count(*) FILTER (WHERE latitud = 0 AND longitud = 0) AS coordenada_cero, count(*) FILTER (WHERE longitud > 0) AS longitud_positiva FROM 'data.csv';"
+    },
+    {
+      "titulo": "Filas frente a episodios de conflicto por año",
+      "duckdb": "WITH f AS ( SELECT year(fecha_reporte) AS anio, count(*) AS filas FROM 'data.csv' WHERE estado LIKE 'e -%' AND NOT (latitud = 0 AND longitud = 0) GROUP BY anio ), e AS ( SELECT year(inicio) AS anio, count(*) AS episodios FROM episodios GROUP BY anio ) SELECT * FROM f JOIN e USING (anio) ORDER BY anio;"
+    },
+    {
+      "titulo": "Meses sin filas de conflicto frente a días con eventos nuevos",
+      "duckdb": "SELECT strftime(fecha_consulta, '%Y-%m') AS mes, count(DISTINCT fecha_consulta::DATE) AS dias_con_eventos_nuevos, count(*) FILTER (WHERE estado LIKE 'e -%') AS filas_de_conflicto FROM 'data.csv' WHERE fecha_consulta >= '2026-06-01' GROUP BY mes ORDER BY mes;"
+    },
+    {
+      "titulo": "Intervalos de más de 24 h sin ningún cambio en la tabla",
+      "duckdb": "WITH cambios AS ( SELECT DISTINCT fecha_consulta AS t FROM 'data.csv' UNION SELECT fecha_fin FROM 'data.csv' WHERE fecha_fin IS NOT NULL ), intervalos AS ( SELECT lag(t) OVER (ORDER BY t) AS desde, t AS hasta FROM cambios ) SELECT desde, hasta, hasta - desde AS duracion FROM intervalos WHERE hasta - desde > INTERVAL 24 HOUR ORDER BY duracion DESC LIMIT 5;"
+    },
+    {
+      "titulo": "Filas por tipo de carretera con el texto normalizado",
+      "duckdb": "SELECT replace(tipo_de_carretera, 'carretera ', '') AS tipo_de_carretera, count(*) AS filas FROM 'data.csv' GROUP BY ALL ORDER BY filas DESC;"
+    },
+    {
+      "titulo": "Filas por restricción vehicular con el texto normalizado",
+      "duckdb": "SELECT regexp_replace(restricción_vehicular, ', todo tipo de vehiculos$', '') AS restriccion_vehicular, count(*) AS filas FROM 'data.csv' GROUP BY ALL ORDER BY filas DESC LIMIT 8;"
+    },
+    {
+      "titulo": "Conversión de hora de Bolivia a UTC",
+      "duckdb": "SELECT fecha_reporte AS hora_de_bolivia, (fecha_reporte AT TIME ZONE 'America/La_Paz') AT TIME ZONE 'UTC' AS hora_utc FROM 'data.csv' LIMIT 3;"
+    }
+  ],
+  "cifras_citadas_al": "2026-11-17",
+  "updated": "",
+  "cobertura": {}
+}
