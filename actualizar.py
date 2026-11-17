@@ -44,7 +44,7 @@ INTENTOS = 5
 ESPERA_ENTRE_INTENTOS = 10  # segundos
 MODELO_GEMINI = "gemini-3.1-flash-lite"
 FORMATO_FECHA = "%Y-%m-%d %H:%M:%S"
-PATRON_CAPTCHA = re.compile(r"[0-9a-f]{6}")
+PATRON_CAPTCHA = re.compile(r"[A-Za-z0-9]{6}")
 
 # El certificado TLS de la fuente venció el 2026-11-15 y el servidor no lo ha
 # renovado. Los datos son públicos y no enviamos credenciales, así que omitimos
@@ -96,21 +96,22 @@ def resolver_captcha(sesion: requests.Session, url_imagen: str) -> str:
     respuesta.raise_for_status()
     imagen = Image.open(BytesIO(respuesta.content))
 
-    # El cliente debe seguir referenciado durante la petición: si se descarta,
+    # Se guarda el cliente en una variable: si se descarta durante la petición,
     # Python lo cierra y la llamada falla con "the client has been closed".
-    with genai.Client(api_key=os.environ["GEMINI_API_KEY"]) as cliente:
-        resultado = cliente.models.generate_content(
-            model=MODELO_GEMINI,
-            contents=[
-                (
-                    "Transcribe this 6-character hexadecimal string shown in the "
-                    "image. Return exactly 6 characters, with no spaces, "
-                    "punctuation, markdown, or explanation."
-                ),
-                imagen,
-            ],
-        )
-    texto = (resultado.text or "").strip().lower()
+    cliente = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    resultado = cliente.models.generate_content(
+        model=MODELO_GEMINI,
+        contents=[
+            (
+                "Transcribe the 6-character code shown in the image. It has only "
+                "lowercase letters and digits, and lines cross over it. Return "
+                "exactly the 6 characters, with no spaces, punctuation, markdown, "
+                "or explanation."
+            ),
+            imagen,
+        ],
+    )
+    texto = (resultado.text or "").strip()
     if not PATRON_CAPTCHA.fullmatch(texto):
         raise RuntimeError(f"Transcripción de captcha inválida: {texto!r}")
     return texto
