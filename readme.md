@@ -16,7 +16,7 @@ En este readme, un **conflicto** es un evento con el estado "no transitable por 
 
 <!-- cobertura:inicio -->
 
-Cifras al 17 de noviembre de 2026. Se actualizan en cada corrida.
+Cifras al 18 de noviembre de 2026. Se actualizan en cada corrida.
 
 | Dato | Valor |
 |---|---|
@@ -64,7 +64,7 @@ Episodios de conflicto por año en que empiezan:
 | 2025 | 262 |
 | 2026 | 513 |
 
-El año 2020 cuenta desde agosto y el año 2026 cuenta hasta el 17 de noviembre. El mes con más episodios nuevos es mayo de 2026 (252).
+El año 2020 cuenta desde agosto y el año 2026 cuenta hasta el 18 de noviembre. El mes con más episodios nuevos es mayo de 2026 (252).
 
 <!-- cobertura:fin -->
 
