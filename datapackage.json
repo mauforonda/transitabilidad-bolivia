@@ -179,9 +179,9 @@
           "longitud"
         ]
       },
-      "bytes": 16446978,
-      "hash": "sha256:9a55975c1e3b40debb9ede2ad8c6c04441ff1be4156aa49e0406a34c8f5e45da",
-      "rows": 42805
+      "bytes": 16449138,
+      "hash": "sha256:e42bd88d75e9ecda82d816ae76ac3bceb9aeb3f3da46a342b9e1fa35f9e34ce8",
+      "rows": 42812
     }
   ],
   "advertencias": [
@@ -291,10 +291,10 @@
   "cifras_citadas_al": "2026-11-17",
   "updated": "2026-11-20",
   "cobertura": {
-    "filas": 42805,
-    "filas_abiertas": 19,
+    "filas": 42812,
+    "filas_abiertas": 20,
     "filas_por_estado": {
-      "b - transitable con precaución": 9245,
+      "b - transitable con precaución": 9252,
       "c - transitable con desvios": 12379,
       "d - no transitable, trafico cerrado": 2646,
       "e - no transitable por conflictos sociales": 11084,
@@ -306,17 +306,17 @@
       "fecha_consulta": {
         "desde": "2020-08-15",
         "hasta": "2026-11-20",
-        "filas_con_dato": 42805
+        "filas_con_dato": 42812
       },
       "fecha_reporte": {
         "desde": "2020-08-13",
         "hasta": "2026-11-20",
-        "filas_con_dato": 42805
+        "filas_con_dato": 42812
       },
       "fecha_fin": {
         "desde": "2020-08-16",
         "hasta": "2026-11-20",
-        "filas_con_dato": 42786
+        "filas_con_dato": 42792
       }
     }
   }
