@@ -179,8 +179,8 @@
           "longitud"
         ]
       },
-      "bytes": 16451911,
-      "hash": "sha256:ab9ba859dff817df0a22b180c252ced9817dad5a438b1d857454d1198b4e8e62",
+      "bytes": 16451949,
+      "hash": "sha256:e1364fd0dfa8c226f2b3c569b870778b78f588050d8540179534477047861371",
       "rows": 42820
     }
   ],
@@ -292,7 +292,7 @@
   "updated": "2026-11-21",
   "cobertura": {
     "filas": 42820,
-    "filas_abiertas": 20,
+    "filas_abiertas": 18,
     "filas_por_estado": {
       "b - transitable con precaución": 9257,
       "c - transitable con desvios": 12381,
@@ -316,7 +316,7 @@
       "fecha_fin": {
         "desde": "2020-08-16",
         "hasta": "2026-11-21",
-        "filas_con_dato": 42800
+        "filas_con_dato": 42802
       }
     }
   }
