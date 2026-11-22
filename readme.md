@@ -16,20 +16,20 @@ En este readme, un **conflicto** es un evento con el estado "no transitable por 
 
 <!-- cobertura:inicio -->
 
-Cifras al 21 de noviembre de 2026. Se actualizan en cada corrida.
+Cifras al 22 de noviembre de 2026. Se actualizan en cada corrida.
 
 | Dato | Valor |
 |---|---|
 | Inicio de la serie | 15 de agosto de 2020 |
-| Filas | 42 820 |
+| Filas | 42 824 |
 
 Filas por estado:
 
 | Estado | Filas |
 |---|---|
-| Transitable con desvíos | 12 381 |
+| Transitable con desvíos | 12 382 |
 | No transitable por conflictos sociales | 11 084 |
-| Transitable con precaución | 9 257 |
+| Transitable con precaución | 9 260 |
 | Restricción vehicular | 5 788 |
 | No transitable, tráfico cerrado | 2 646 |
 | Restricción vehicular especial | 1 500 |
@@ -64,7 +64,7 @@ Episodios de conflicto por año en que empiezan:
 | 2025 | 262 |
 | 2026 | 513 |
 
-El año 2020 cuenta desde agosto y el año 2026 cuenta hasta el 21 de noviembre. El mes con más episodios nuevos es mayo de 2026 (252).
+El año 2020 cuenta desde agosto y el año 2026 cuenta hasta el 22 de noviembre. El mes con más episodios nuevos es mayo de 2026 (252).
 
 <!-- cobertura:fin -->
 
