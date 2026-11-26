@@ -21,16 +21,16 @@ Cifras al 26 de noviembre de 2026. Se actualizan en cada corrida.
 | Dato | Valor |
 |---|---|
 | Inicio de la serie | 15 de agosto de 2020 |
-| Filas | 42 908 |
+| Filas | 42 915 |
 
 Filas por estado:
 
 | Estado | Filas |
 |---|---|
-| Transitable con desvíos | 12 395 |
+| Transitable con desvíos | 12 396 |
 | No transitable por conflictos sociales | 11 084 |
-| Transitable con precaución | 9 318 |
-| Restricción vehicular | 5 801 |
+| Transitable con precaución | 9 323 |
+| Restricción vehicular | 5 802 |
 | No transitable, tráfico cerrado | 2 646 |
 | Restricción vehicular especial | 1 500 |
 | Obstrucción por trabajos de limpieza | 164 |
