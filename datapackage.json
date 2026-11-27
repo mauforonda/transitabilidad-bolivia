@@ -179,9 +179,9 @@
           "longitud"
         ]
       },
-      "bytes": 16485355,
-      "hash": "sha256:8355675bd3c79f7c6d38a5726991061357934dd2d422edf208a2ba6597bbabfd",
-      "rows": 42915
+      "bytes": 16486082,
+      "hash": "sha256:1ab6dc605610a53b3e2ea8fc41604639630ae4ca3dde647c8e6352fd27472092",
+      "rows": 42917
     }
   ],
   "advertencias": [
@@ -289,34 +289,34 @@
     }
   ],
   "cifras_citadas_al": "2026-11-17",
-  "updated": "2026-11-26",
+  "updated": "2026-11-27",
   "cobertura": {
-    "filas": 42915,
+    "filas": 42917,
     "filas_abiertas": 15,
     "filas_por_estado": {
-      "b - transitable con precaución": 9323,
+      "b - transitable con precaución": 9324,
       "c - transitable con desvios": 12396,
       "d - no transitable, trafico cerrado": 2646,
       "e - no transitable por conflictos sociales": 11084,
-      "g - restriccion vehicular": 5802,
+      "g - restriccion vehicular": 5803,
       "h - restriccion vehicular, especial": 1500,
       "i - obstruccion por trabajos de limpieza": 164
     },
     "rangos": {
       "fecha_consulta": {
         "desde": "2020-08-15",
-        "hasta": "2026-11-26",
-        "filas_con_dato": 42915
+        "hasta": "2026-11-27",
+        "filas_con_dato": 42917
       },
       "fecha_reporte": {
         "desde": "2020-08-13",
         "hasta": "2026-11-26",
-        "filas_con_dato": 42915
+        "filas_con_dato": 42917
       },
       "fecha_fin": {
         "desde": "2020-08-16",
-        "hasta": "2026-11-26",
-        "filas_con_dato": 42900
+        "hasta": "2026-11-27",
+        "filas_con_dato": 42902
       }
     }
   }
